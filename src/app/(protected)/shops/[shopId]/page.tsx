@@ -62,6 +62,17 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
           )}
         </div>
 
+        {/* 勤怠記録 */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sm">勤怠記録</h2>
+            <Link href={`/shops/${shopId}/attendance`}
+              className="text-sm text-gray-900 font-medium hover:underline">
+              確認する →
+            </Link>
+          </div>
+        </div>
+
         {/* タブレット打刻リンク */}
         {punchModes.includes('tablet') && (
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
