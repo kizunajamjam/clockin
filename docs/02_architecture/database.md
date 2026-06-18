@@ -61,6 +61,7 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 | organization_id | uuid NOT NULL FK | organizations.id |
 | user_id | uuid FK | auth.users（招待承諾後に紐づく） |
 | name | text NOT NULL | |
+| gender | text | male / female / other。賃金台帳の法定記載事項（労基法108条） |
 | email | text | 招待メール送信先 |
 | pin | text | タブレット打刻用4桁PIN（bcryptハッシュ） |
 | income_alert_amount | integer | 年収アラート閾値（円）。NULLで無効 |
