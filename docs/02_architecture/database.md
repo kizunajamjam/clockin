@@ -82,6 +82,7 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 | hourly_rate | integer NOT NULL | 時給（円） |
 | transport_fee | integer DEFAULT 0 | 交通費（円） |
 | transport_fee_type | text DEFAULT 'daily' | daily / monthly |
+| night_rate_included | boolean NOT NULL DEFAULT false | 深夜割増込み賃金フラグ。trueの場合22:00〜5:00でも割増を加算しない |
 | is_active | boolean DEFAULT true | |
 | created_at | timestamptz DEFAULT now() | |
 
