@@ -95,7 +95,13 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
 
         {/* 店舗設定 */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
-          <h2 className="font-semibold text-sm text-gray-500">店舗設定</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-gray-500">店舗設定</h2>
+            <Link href={`/shops/${shopId}/settings`}
+              className="text-sm text-gray-900 font-medium hover:underline">
+              編集 →
+            </Link>
+          </div>
           <div className="text-sm space-y-1 text-gray-600">
             <p>打刻方式：{punchModes.join('・')}</p>
             <p>GPS確認：{shop.gps_enabled ? `有効（半径${shop.gps_radius_m}m）` : '無効'}</p>
