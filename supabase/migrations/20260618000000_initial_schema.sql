@@ -46,7 +46,6 @@ create policy "オーナーのみ参照" on subscriptions
     )
   );
 
--- service_role からの書き込み（Stripe Webhook）を許可
 create policy "service_role 書き込み" on subscriptions
   for all using (auth.role() = 'service_role');
 
@@ -68,21 +67,10 @@ create table shops (
 
 alter table shops enable row level security;
 
--- オーナーは自分の組織の店舗を全操作
 create policy "オーナー全操作" on shops
   for all using (
     organization_id in (
       select id from organizations where owner_user_id = auth.uid()
-    )
-  );
-
--- スタッフ・マネージャーは自分が所属する店舗を参照のみ
-create policy "所属スタッフ参照" on shops
-  for select using (
-    id in (
-      select shop_id from shop_staff where staff_id in (
-        select id from staff where user_id = auth.uid()
-      )
     )
   );
 
@@ -94,9 +82,10 @@ create table staff (
   organization_id       uuid not null references organizations(id) on delete cascade,
   user_id               uuid references auth.users(id) on delete set null,
   name                  text not null,
+  gender                text check (gender in ('male','female','other')),
   email                 text,
-  pin                   text,  -- bcrypt ハッシュ
-  income_alert_amount   integer,  -- 年収アラート閾値（円）。NULL で無効
+  pin                   text,
+  income_alert_amount   integer,
   created_at            timestamptz not null default now()
 );
 
@@ -125,6 +114,7 @@ create table shop_staff (
   transport_fee         integer not null default 0,
   transport_fee_type    text not null default 'daily'
                           check (transport_fee_type in ('daily','monthly')),
+  night_rate_included   boolean not null default false,
   is_active             boolean not null default true,
   created_at            timestamptz not null default now(),
   unique (shop_id, staff_id)
@@ -144,6 +134,16 @@ create policy "オーナー全操作" on shop_staff
 create policy "本人参照" on shop_staff
   for select using (
     staff_id in (select id from staff where user_id = auth.uid())
+  );
+
+-- shop_staffが作成された後にshopsのスタッフ参照ポリシーを追加
+create policy "所属スタッフ参照" on shops
+  for select using (
+    id in (
+      select shop_id from shop_staff where staff_id in (
+        select id from staff where user_id = auth.uid()
+      )
+    )
   );
 
 -- ────────────────────────────────────────────
@@ -222,7 +222,7 @@ create table salary_custom_items (
   name         text not null,
   type         text not null
                  check (type in ('count_unit','fixed','percentage','expense','time_unit')),
-  unit_price   integer,  -- count_unit / time_unit のとき使用
+  unit_price   integer,
   sort_order   integer not null default 0,
   created_at   timestamptz not null default now()
 );
@@ -246,8 +246,8 @@ create table salary_custom_records (
   shop_id      uuid not null references shops(id) on delete cascade,
   staff_id     uuid not null references staff(id) on delete cascade,
   item_id      uuid not null references salary_custom_items(id) on delete cascade,
-  year_month   text not null,  -- 'YYYY-MM'
-  value        numeric not null,  -- 件数 or 金額 or 売上額
+  year_month   text not null,
+  value        numeric not null,
   created_at   timestamptz not null default now(),
   unique (staff_id, item_id, year_month)
 );
@@ -288,7 +288,7 @@ create trigger subscriptions_updated_at
   for each row execute function update_updated_at();
 
 -- ────────────────────────────────────────────
--- service_role GRANT（Stripe Webhook等のサーバーサイド書き込み）
+-- service_role GRANT
 -- ────────────────────────────────────────────
 grant all on organizations to service_role;
 grant all on subscriptions to service_role;
