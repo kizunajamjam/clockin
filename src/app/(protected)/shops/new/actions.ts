@@ -13,6 +13,9 @@ export async function createShop(prevState: State, formData: FormData): Promise<
   const name = (formData.get('name') as string).trim()
   if (!name) return { error: '店舗名を入力してください' }
 
+  const prefecture = (formData.get('prefecture') as string).trim()
+  if (!prefecture) return { error: '都道府県を選択してください' }
+
   const punchModes = formData.getAll('punch_modes') as string[]
   if (punchModes.length === 0) return { error: '打刻方式を1つ以上選択してください' }
 
@@ -43,6 +46,7 @@ export async function createShop(prevState: State, formData: FormData): Promise<
     .insert({
       organization_id: org.id,
       name,
+      prefecture,
       punch_modes: punchModes,
       gps_enabled: gpsEnabled,
       gps_radius_m: gpsRadius,

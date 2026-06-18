@@ -62,6 +62,25 @@ export default function NewShopPage() {
             />
           </div>
 
+          {/* 都道府県（最低賃金チェックに使用） */}
+          <div className="space-y-1">
+            <label htmlFor="prefecture" className="text-sm font-medium text-gray-700">
+              都道府県 <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="prefecture"
+              name="prefecture"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="">選択してください</option>
+              {['北海道','青森','岩手','宮城','秋田','山形','福島','茨城','栃木','群馬','埼玉','千葉','東京','神奈川','新潟','富山','石川','福井','山梨','長野','岐阜','静岡','愛知','三重','滋賀','京都','大阪','兵庫','奈良','和歌山','鳥取','島根','岡山','広島','山口','徳島','香川','愛媛','高知','福岡','佐賀','長崎','熊本','大分','宮崎','鹿児島','沖縄'].map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400">スタッフ登録時の最低賃金チェックに使用します</p>
+          </div>
+
           {/* 打刻方式 */}
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700">
