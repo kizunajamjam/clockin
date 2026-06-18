@@ -47,13 +47,17 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
           {staffList.length > 0 ? (
             <ul className="divide-y divide-gray-100">
               {staffList.map(s => (
-                <li key={s.id} className="py-2">
+                <li key={s.id} className="py-2 flex items-start justify-between gap-2">
+                  <div>
                   <p className="text-sm font-medium">{s.name}</p>
                   {s.invite_token && (
                     <p className="text-xs text-gray-400 break-all mt-0.5">
                       招待URL: {baseUrl}/invite/{s.invite_token}
                     </p>
                   )}
+                  </div>
+                  <Link href={`/shops/${shopId}/staff/${s.id}`}
+                    className="text-xs text-gray-400 hover:text-gray-600 shrink-0 mt-0.5">編集</Link>
                 </li>
               ))}
             </ul>
@@ -62,15 +66,18 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
           )}
         </div>
 
-        {/* 勤怠記録 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-sm">勤怠記録</h2>
-            <Link href={`/shops/${shopId}/attendance`}
-              className="text-sm text-gray-900 font-medium hover:underline">
-              確認する →
+        {/* クイックリンク */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: '勤怠記録', href: `/shops/${shopId}/attendance` },
+            { label: 'シフト', href: `/shops/${shopId}/shifts` },
+            { label: '給与計算', href: `/shops/${shopId}/payroll` },
+          ].map(({ label, href }) => (
+            <Link key={href} href={href}
+              className="bg-white rounded-xl border border-gray-200 px-3 py-4 text-center text-sm font-medium hover:border-gray-400 transition-colors">
+              {label}
             </Link>
-          </div>
+          ))}
         </div>
 
         {/* タブレット打刻リンク */}
