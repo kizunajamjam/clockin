@@ -42,6 +42,7 @@ RLS: owner_user_id = auth.uid() のみ読み書き可
 | organization_id | uuid NOT NULL FK | organizations.id |
 | name | text NOT NULL | 店舗名 |
 | timezone | text NOT NULL DEFAULT 'Asia/Tokyo' | |
+| prefecture | text | 都道府県（最低賃金チェックに使用） |
 | punch_modes | text[] NOT NULL DEFAULT '{tablet,smartphone}' | 有効な打刻方式 |
 | gps_lat | float8 | 店舗緯度 |
 | gps_lng | float8 | 店舗経度 |
@@ -63,7 +64,8 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 | name | text NOT NULL | |
 | gender | text | male / female / other。賃金台帳の法定記載事項（労基法108条） |
 | email | text | 招待メール送信先 |
-| pin | text | タブレット打刻用4桁PIN（bcryptハッシュ） |
+| pin | text | タブレット打刻用4桁PIN（PBKDF2ハッシュ・saltはstaff.id） |
+| invite_token | text UNIQUE | 招待URL用トークン。招待承諾後にNULLクリア |
 | income_alert_amount | integer | 年収アラート閾値（円）。NULLで無効 |
 | created_at | timestamptz DEFAULT now() | |
 
