@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // Cloudflare Pages (Edge Runtime) 向け
+  experimental: {
+    // next-on-pages が Edge に変換するため Node.js ランタイムは使わない
+  },
+}
 
-export default nextConfig;
+export default nextConfig
