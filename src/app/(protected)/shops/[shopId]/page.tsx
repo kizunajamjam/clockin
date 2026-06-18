@@ -1,14 +1,19 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 
 export default async function ShopPage({ params }: { params: Promise<{ shopId: string }> }) {
   const { shopId } = await params
   const admin = createAdminClient()
+  const headersList = await headers()
+  const host = headersList.get('host') ?? 'localhost:3000'
+  const protocol = host.startsWith('localhost') ? 'http' : 'https'
+  const baseUrl = `${protocol}://${host}`
 
   const [{ data: shop }, { data: shopStaff }] = await Promise.all([
     admin.from('shops').select('id, name, punch_modes, gps_enabled, gps_radius_m').eq('id', shopId).single(),
-    admin.from('shop_staff').select('staff_id, staff(id, name)').eq('shop_id', shopId).eq('is_active', true),
+    admin.from('shop_staff').select('staff_id, staff(id, name, invite_token)').eq('shop_id', shopId).eq('is_active', true),
   ])
 
   if (!shop) notFound()
@@ -16,7 +21,8 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
   const staffList = (shopStaff ?? []).flatMap(ss => {
     const s = ss.staff
     if (!s) return []
-    return (Array.isArray(s) ? s : [s]) as { id: string; name: string }[]
+    const arr = Array.isArray(s) ? s : [s]
+    return arr as { id: string; name: string; invite_token: string | null }[]
   })
 
   const punchModes = shop.punch_modes as string[]
@@ -41,7 +47,14 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
           {staffList.length > 0 ? (
             <ul className="divide-y divide-gray-100">
               {staffList.map(s => (
-                <li key={s.id} className="py-2 text-sm">{s.name}</li>
+                <li key={s.id} className="py-2">
+                  <p className="text-sm font-medium">{s.name}</p>
+                  {s.invite_token && (
+                    <p className="text-xs text-gray-400 break-all mt-0.5">
+                      招待URL: {baseUrl}/invite/{s.invite_token}
+                    </p>
+                  )}
+                </li>
               ))}
             </ul>
           ) : (

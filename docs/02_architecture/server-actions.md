@@ -108,11 +108,47 @@
 
 ---
 
+## スタッフ招待
+
+### `src/app/invite/[token]/actions.ts`
+
+#### `acceptInvite(prevState, formData)`
+| フィールド | バリデーション |
+|---|---|
+| token | 必須・招待トークン（URL由来） |
+| email | 必須 |
+| password | 必須・8文字以上 |
+
+1. `invite_token` でstaffレコードを検索
+2. `user_id` 設定済みならエラー（既使用）
+3. `admin.auth.admin.createUser()` でSupabase Authアカウント作成（email_confirm: true）
+4. staffレコードに `user_id` / `email` を紐付け、`invite_token` を null にクリア
+5. `/punch/setup-complete` へリダイレクト
+
+---
+
+## 打刻（個人スマホ）
+
+### `src/app/punch/actions.ts`
+
+#### `punchSmartphone(formData)` — ログイン必須
+| フィールド | バリデーション |
+|---|---|
+| shop_id | 必須 |
+| gps_lat / gps_lng | GPS有効時は必須（クライアントが取得してsubmit） |
+
+1. ログインユーザーの `staff.id` を取得
+2. 店舗のスマホ打刻有効 + 所属確認
+3. GPS有効時: Haversine公式で店舗座標との距離を計算 → 半径外はエラー
+4. 当日のattendanceレコード確認（タブレット打刻と同じロジック）
+5. `{ success: true, type: 'in'|'out', shopName }` を返す
+
+---
+
 ## 今後追加予定
 
 | アクション | 場所 | 概要 |
 |---|---|---|
-| `clockInSmartphone` | `/punch` | 個人スマホ打刻（GPS確認含む） |
 | `updateAttendance` | `/shops/[shopId]/attendance` | 打刻修正（修正理由必須） |
 | `createShift` | `/shops/[shopId]/shifts` | シフト作成（プロ限定） |
 | `createStripeSession` | `/settings/billing` | Stripe Checkout セッション作成 |

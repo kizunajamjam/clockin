@@ -63,6 +63,7 @@ export async function createStaff(prevState: State, formData: FormData): Promise
 
   // staff レコード作成
   const staffId = crypto.randomUUID()
+  const inviteToken = crypto.randomUUID()
   const pinHash = pin ? await hashPin(pin, staffId) : null
 
   const { error: staffError } = await admin.from('staff').insert({
@@ -72,6 +73,7 @@ export async function createStaff(prevState: State, formData: FormData): Promise
     gender: gender || null,
     income_alert_amount: incomeAlertAmount,
     pin: pinHash,
+    invite_token: inviteToken,
   })
   if (staffError) return { error: 'スタッフの作成に失敗しました: ' + staffError.message }
 
