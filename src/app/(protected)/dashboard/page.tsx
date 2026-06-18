@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logout } from '@/app/logout/actions'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -8,6 +9,15 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const admin = createAdminClient()
+
+  // スタッフアカウントの場合は打刻画面へリダイレクト
+  const { data: staffRecord } = await admin
+    .from('staff')
+    .select('id')
+    .eq('user_id', user!.id)
+    .single()
+  if (staffRecord) redirect('/punch')
+
   const { data: org } = await admin
     .from('organizations')
     .select('id, name')
