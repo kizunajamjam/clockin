@@ -31,6 +31,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/invite') ||
+    pathname.startsWith('/kiosk') ||   // タブレット打刻は認証不要
     pathname === '/'
 
   if (!user && !isPublic) {
