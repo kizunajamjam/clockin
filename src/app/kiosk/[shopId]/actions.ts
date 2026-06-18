@@ -2,6 +2,22 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyPin } from '@/lib/pin'
 
+export async function getAttendanceStatus(staffId: string, shopId: string): Promise<'in' | 'out' | 'done'> {
+  const admin = createAdminClient()
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+  const { data } = await admin
+    .from('attendances')
+    .select('clocked_in_at, clocked_out_at')
+    .eq('shop_id', shopId)
+    .eq('staff_id', staffId)
+    .eq('date', today)
+    .single()
+
+  if (!data || !data.clocked_in_at) return 'in'
+  if (!data.clocked_out_at) return 'out'
+  return 'done'
+}
+
 type PunchResult =
   | { success: true; type: 'in' | 'out'; staffName: string }
   | { success: false; error: string }
