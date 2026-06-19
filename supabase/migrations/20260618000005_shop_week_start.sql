@@ -1,0 +1,1 @@
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS week_start text NOT NULL DEFAULT 'mon';

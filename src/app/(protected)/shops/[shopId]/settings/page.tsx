@@ -14,7 +14,7 @@ export default async function ShopSettingsPage({ params }: { params: Promise<{ s
   const admin = createAdminClient()
   const { data: shop } = await admin
     .from('shops')
-    .select('id, name, organization_id, prefecture, punch_modes, gps_enabled, gps_lat, gps_lng, gps_radius_m')
+    .select('id, name, organization_id, prefecture, punch_modes, gps_enabled, gps_lat, gps_lng, gps_radius_m, week_start')
     .eq('id', shopId)
     .single()
   if (!shop) notFound()
@@ -44,6 +44,7 @@ export default async function ShopSettingsPage({ params }: { params: Promise<{ s
             gpsLat: shop.gps_lat?.toString() ?? '',
             gpsLng: shop.gps_lng?.toString() ?? '',
             gpsRadiusM: shop.gps_radius_m,
+            weekStart: (shop.week_start as string) ?? 'mon',
           }}
         />
       </main>

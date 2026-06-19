@@ -35,6 +35,8 @@ export async function updateShop(prevState: State, formData: FormData): Promise<
   const { data: org } = await admin.from('organizations').select('id').eq('id', shop.organization_id).eq('owner_user_id', user.id).single()
   if (!org) return { error: '権限がありません' }
 
+  const weekStart = formData.get('week_start') === 'sun' ? 'sun' : 'mon'
+
   const { error } = await admin.from('shops').update({
     name,
     prefecture,
@@ -43,6 +45,7 @@ export async function updateShop(prevState: State, formData: FormData): Promise<
     gps_radius_m: gpsRadius,
     gps_lat: gpsLat,
     gps_lng: gpsLng,
+    week_start: weekStart,
   }).eq('id', shopId)
 
   if (error) return { error: '更新に失敗しました: ' + error.message }

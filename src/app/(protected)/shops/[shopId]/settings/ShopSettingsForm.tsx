@@ -11,6 +11,7 @@ type DefaultValues = {
   gpsLat: string
   gpsLng: string
   gpsRadiusM: number
+  weekStart: string
 }
 
 export function ShopSettingsForm({ shopId, defaultValues: dv }: { shopId: string; defaultValues: DefaultValues }) {
@@ -57,6 +58,16 @@ export function ShopSettingsForm({ shopId, defaultValues: dv }: { shopId: string
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="">選択してください</option>
           {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+
+      {/* シフト週始め */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">シフトの週始め</label>
+        <select name="week_start" defaultValue={dv.weekStart}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="mon">月曜始まり</option>
+          <option value="sun">日曜始まり</option>
         </select>
       </div>
 
