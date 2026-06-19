@@ -10,7 +10,8 @@ Supabase (PostgreSQL) を使用。RLS を全テーブルに適用。
 
 ```
 organizations ──< shops ──< shop_staff >── staff ──< attendances
-                       └──< shifts              └──< salary_custom_records
+                       ├──< shifts                  ├──< salary_custom_records
+                       ├──< shift_requests          └──< punch_attempts
                        └──< salary_custom_items
 
 organizations ──< subscriptions
@@ -66,7 +67,7 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 | name | text NOT NULL | |
 | gender | text | male / female / other。賃金台帳の法定記載事項（労基法108条） |
 | email | text | 招待メール送信先 |
-| pin | text | タブレット打刻用4桁PIN（PBKDF2ハッシュ・saltはstaff.id） |
+| pin | text | タブレット打刻用PIN・4〜6桁可変（PBKDF2ハッシュ・saltはstaff.id） |
 | pin_failed_count | integer NOT NULL DEFAULT 0 | PIN連続失敗回数（ブルートフォース対策） |
 | pin_locked_until | timestamptz | PINロック解除時刻。NULL/過去ならロックなし |
 | invite_token | text UNIQUE | 招待URL用トークン。招待承諾後にNULLクリア |
@@ -152,7 +153,31 @@ UNIQUE (shop_id, staff_id)
 | created_at | timestamptz DEFAULT now() | |
 | updated_at | timestamptz DEFAULT now() | |
 
+部分ユニークインデックス `attendances_open_punch_unique (shop_id, staff_id, date) WHERE clocked_out_at IS NULL`
+（1日複数回の出退勤に対応するため `UNIQUE (shop_id, staff_id, date)` は撤廃。
+未退勤（同時に2か所で出勤中）のレコードのみ1件に制限する）
+
+---
+
+### shift_requests
+
+スタッフが提出する希望シフト。オーナーが承認すると `createShiftFromRequest` で `shifts` に反映される。
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| id | uuid PK | |
+| shop_id | uuid NOT NULL FK | shops.id |
+| staff_id | uuid NOT NULL FK | staff.id |
+| date | date NOT NULL | |
+| start_time | time | |
+| end_time | time | |
+| note | text | |
+| status | text NOT NULL DEFAULT 'pending' | pending / approved / rejected |
+| created_at | timestamptz DEFAULT now() | |
+
 UNIQUE (shop_id, staff_id, date)
+RLS: 本人（staff_id = 自分のstaff.id）のみ全操作可。オーナー側は `getOwnerShop` 経由の
+service_role 操作で読み書き（[server-actions.md](./server-actions.md) 参照）。
 
 ---
 

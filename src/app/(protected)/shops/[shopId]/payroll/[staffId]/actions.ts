@@ -9,7 +9,8 @@ export async function upsertCustomRecords(prevState: unknown, formData: FormData
   const staffId = formData.get('staff_id') as string
   const yearMonth = formData.get('year_month') as string
 
-  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return { error: '対象月が不正です' }
+  const month = Number(yearMonth.slice(5, 7))
+  if (!/^\d{4}-\d{2}$/.test(yearMonth) || month < 1 || month > 12) return { error: '対象月が不正です' }
 
   const ctx = await getOwnerShop(shopId)
   if (!ctx) return { error: '権限がありません' }
