@@ -28,6 +28,7 @@ export type DailyPayroll = {
 
 export type MonthlyPayroll = {
   days: DailyPayroll[]
+  work_days: number          // 実出勤日数（同日複数打刻は1日として数える）
   total_work_minutes: number
   total_base_pay: number
   total_night_premium: number
@@ -93,7 +94,22 @@ export function calcMonthlyPayroll(
     .map(r => calcDailyPayroll(r, setting))
     .filter((d): d is DailyPayroll => d !== null)
 
+  // 日払い交通費は「日付」単位。同日に複数回打刻があっても1日分のみ計上する
+  // （attendances の UNIQUE 制約撤廃で同日複数レコードが発生しうるため二重計上を防止）
+  if (setting.transport_fee_type === 'daily') {
+    const seen = new Set<string>()
+    for (const d of days) {
+      if (seen.has(d.date)) {
+        d.total -= d.transport_fee
+        d.transport_fee = 0
+      } else {
+        seen.add(d.date)
+      }
+    }
+  }
+
   const monthlyTransport = setting.transport_fee_type === 'monthly' ? setting.transport_fee : 0
+  const workDays = new Set(days.map(d => d.date)).size
 
   const totalBasePay = days.reduce((s, d) => s + d.base_pay, 0)
   const totalNightPremium = days.reduce((s, d) => s + d.night_premium, 0)
@@ -101,6 +117,7 @@ export function calcMonthlyPayroll(
 
   return {
     days,
+    work_days: workDays,
     total_work_minutes: days.reduce((s, d) => s + d.work_minutes, 0),
     total_base_pay: totalBasePay,
     total_night_premium: totalNightPremium,

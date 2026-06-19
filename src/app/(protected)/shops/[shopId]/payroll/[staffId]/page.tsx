@@ -80,7 +80,7 @@ export default async function StaffPayrollPage({
             </div>
           </div>
           <div className="text-xs text-gray-400 text-center border-t border-gray-100 pt-3">
-            勤務時間合計: {formatMinutes(payroll.total_work_minutes)} / 出勤日数: {payroll.days.length}日
+            勤務時間合計: {formatMinutes(payroll.total_work_minutes)} / 出勤日数: {payroll.work_days}日
           </div>
         </div>
 
@@ -102,8 +102,8 @@ export default async function StaffPayrollPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {payroll.days.map(day => (
-                  <tr key={day.date}>
+                {payroll.days.map((day, i) => (
+                  <tr key={`${day.date}-${i}`}>
                     <td className="px-4 py-2 text-gray-700">{day.date}</td>
                     <td className="px-4 py-2 text-center text-gray-600">{formatMinutes(day.work_minutes)}</td>
                     <td className="px-4 py-2 text-right font-medium">¥{day.total.toLocaleString()}</td>

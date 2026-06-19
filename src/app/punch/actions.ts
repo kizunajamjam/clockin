@@ -1,29 +1,19 @@
 'use server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthedStaffForShop } from '@/lib/auth'
 
 type PunchResult =
   | { success: true; type: 'in' | 'out'; shopName: string }
   | { success: false; error: string }
 
 export async function punchSmartphone(formData: FormData): Promise<PunchResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'ログインが必要です' }
-
   const shopId = formData.get('shop_id') as string
   const gpsLat = formData.get('gps_lat') ? parseFloat(formData.get('gps_lat') as string) : null
   const gpsLng = formData.get('gps_lng') ? parseFloat(formData.get('gps_lng') as string) : null
 
-  const admin = createAdminClient()
-
-  // スタッフ情報取得
-  const { data: staffRecord } = await admin
-    .from('staff')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-  if (!staffRecord) return { success: false, error: 'スタッフ情報が見つかりません' }
+  // 認証 + 店舗所属を一括検証（service_role はRLSを迂回するため必須）
+  const ctx = await getAuthedStaffForShop(shopId)
+  if (!ctx) return { success: false, error: 'この店舗のスタッフではありません' }
+  const { admin, staffId } = ctx
 
   // 店舗情報取得（GPS設定確認）
   const { data: shop } = await admin
@@ -37,16 +27,6 @@ export async function punchSmartphone(formData: FormData): Promise<PunchResult> 
   if (!punchModes.includes('smartphone')) {
     return { success: false, error: 'この店舗はスマホ打刻が無効です' }
   }
-
-  // 所属確認
-  const { data: shopStaff } = await admin
-    .from('shop_staff')
-    .select('id')
-    .eq('shop_id', shopId)
-    .eq('staff_id', staffRecord.id)
-    .eq('is_active', true)
-    .single()
-  if (!shopStaff) return { success: false, error: 'この店舗のスタッフではありません' }
 
   // GPS確認
   if (shop.gps_enabled) {
@@ -64,18 +44,28 @@ export async function punchSmartphone(formData: FormData): Promise<PunchResult> 
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
   const now = new Date().toISOString()
 
-  const { data: existing } = await admin
+  // 未退勤レコードを探す（複数回打刻対応）
+  const { data: openRecord } = await admin
     .from('attendances')
-    .select('id, clocked_in_at, clocked_out_at')
+    .select('id')
     .eq('shop_id', shopId)
-    .eq('staff_id', staffRecord.id)
+    .eq('staff_id', staffId)
     .eq('date', today)
+    .is('clocked_out_at', null)
+    .limit(1)
     .single()
 
-  if (!existing) {
+  if (openRecord) {
+    await admin.from('attendances').update({
+      clocked_out_at: now,
+      gps_lat: gpsLat,
+      gps_lng: gpsLng,
+    }).eq('id', openRecord.id)
+    return { success: true, type: 'out', shopName: shop.name }
+  } else {
     await admin.from('attendances').insert({
       shop_id: shopId,
-      staff_id: staffRecord.id,
+      staff_id: staffId,
       date: today,
       clocked_in_at: now,
       punch_mode: 'smartphone',
@@ -84,17 +74,6 @@ export async function punchSmartphone(formData: FormData): Promise<PunchResult> 
     })
     return { success: true, type: 'in', shopName: shop.name }
   }
-
-  if (existing.clocked_in_at && !existing.clocked_out_at) {
-    await admin.from('attendances').update({
-      clocked_out_at: now,
-      gps_lat: gpsLat,
-      gps_lng: gpsLng,
-    }).eq('id', existing.id)
-    return { success: true, type: 'out', shopName: shop.name }
-  }
-
-  return { success: false, error: '本日の打刻は既に完了しています' }
 }
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {

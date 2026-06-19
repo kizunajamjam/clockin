@@ -4,7 +4,7 @@ import { punchTablet, getAttendanceStatus } from './actions'
 
 type Staff = { id: string; name: string }
 type Screen = 'list' | 'pin' | 'result'
-type PunchType = 'in' | 'out' | 'done' | null
+type PunchType = 'in' | 'out' | null
 
 function useClock() {
   const [time, setTime] = useState('')
@@ -109,7 +109,7 @@ export function KioskClient({ shopId, shopName, staffList }: {
 
   // PIN入力
   if (screen === 'pin') {
-    const punchLabel = punchType === 'in' ? '出勤打刻' : punchType === 'out' ? '退勤打刻' : punchType === 'done' ? '打刻済み' : '確認中...'
+    const punchLabel = punchType === 'in' ? '出勤打刻' : punchType === 'out' ? '退勤打刻' : '確認中...'
     const punchColor = punchType === 'in' ? 'text-green-400' : punchType === 'out' ? 'text-blue-400' : 'text-gray-400'
 
     return (
@@ -141,7 +141,7 @@ export function KioskClient({ shopId, shopName, staffList }: {
           {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => (
             <button
               key={i}
-              disabled={key === '' || isPending || punchType === 'done'}
+              disabled={key === '' || isPending}
               onClick={() => key === '⌫' ? setPin(p => p.slice(0, -1)) : appendPin(key)}
               className={`h-14 rounded-xl text-xl font-medium transition-colors ${
                 key === '' ? '' :
@@ -154,17 +154,13 @@ export function KioskClient({ shopId, shopName, staffList }: {
           ))}
         </div>
 
-        {punchType === 'done' ? (
-          <p className="text-yellow-400 text-sm">本日の打刻は既に完了しています</p>
-        ) : (
-          <button
-            onClick={submitPin}
-            disabled={pin.length !== 4 || isPending}
-            className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl disabled:opacity-40 hover:bg-gray-100 transition-colors"
-          >
-            {isPending ? '確認中...' : punchType === 'in' ? '出勤する' : '退勤する'}
-          </button>
-        )}
+        <button
+          onClick={submitPin}
+          disabled={pin.length !== 4 || isPending}
+          className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl disabled:opacity-40 hover:bg-gray-100 transition-colors"
+        >
+          {isPending ? '確認中...' : punchType === 'in' ? '出勤する' : '退勤する'}
+        </button>
 
         <button onClick={() => { setScreen('list'); setError(''); setPin(''); setPunchType(null) }}
           className="mt-4 text-gray-500 text-sm hover:text-gray-300">
