@@ -86,7 +86,7 @@ public/sw.js      Service Worker（push / notificationclick）
 
 ### 2.3 キオスク打刻（PIN方式）
 入力: `{ staff_id, shop_id, pin(4桁) }`
-1. 入力バリデーション（`/^\d{4}$/`）。
+1. 入力バリデーション（`/^\d{4,6}$/`）＋ IP単位スロットリング確認。
 2. `staff` から `pin`（PBKDF2ハッシュ）取得。`verifyPin(pin, staff.id, hash)` で照合。
 3. §2.2 の判定で出勤/退勤。`punch_mode='tablet'`。
 4. 戻り値: `{ success, type, staffName } | { success:false, error }`。
@@ -106,6 +106,15 @@ Edge環境ではインメモリ状態を持てないため状態はDB（staff行
 保存形式は前方互換 `v2$<iterations>$<hex>`（新規10万回）。旧形式（`$`なし=1万回）も検証可能で、
 打刻成功時に `needsRehash()` が true なら現行パラメータへ透過的に再ハッシュして昇格。
 ハッシュ比較は定数時間（タイミング攻撃対策）。
+
+**PIN桁数**: 4〜6桁の可変（`/^\d{4,6}$/`）。スタッフ作成/編集で任意の長さを設定でき、
+キオスクUIは入力に応じて4〜6マスを表示、4桁以上で送信可能。桁数はハッシュに含まれるため
+列追加は不要（検証時は入力PINをハッシュして比較）。
+
+**IP単位スロットリング＋監査ログ**: `punch_attempts`（[migration 20260619000001](../../supabase/migrations/20260619000001_punch_attempts.sql)）に
+全打刻試行（成功/失敗・staff_id・IP）を記録。同一IPからの失敗が `IP_WINDOW_MINUTES=10` 分間に
+`IP_MAX_FAILS=20` 件でブロック（staff横断の総当たり対策。staff単位ロックアウトと二段構え）。
+IPは `cf-connecting-ip` → `x-forwarded-for` の順で取得。全て無料枠（DBのみ）で完結。
 
 ### 2.4 スマホ打刻（GPS方式）
 入力: `{ shop_id, gps_lat?, gps_lng? }`（ログイン必須）

@@ -73,6 +73,25 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 
 PINロックアウト: キオスク打刻で連続5回失敗すると5分間ロック（`pin_locked_until`）。
 未認証経路のためアプリ層で必須。詳細は[詳細設計書 §2.3](../01_design/detailed-design.md)。
+PINは4〜6桁可変（スタッフごとに任意の長さを設定可）。
+
+---
+
+### punch_attempts
+
+キオスク打刻の監査ログ。成功/失敗を全件記録し、IP単位スロットリングの母数にもなる。
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| id | uuid PK | |
+| shop_id | uuid FK | shops.id（ON DELETE CASCADE） |
+| staff_id | uuid FK | staff.id（ON DELETE SET NULL。スタッフ不明の試行はNULL） |
+| success | boolean NOT NULL | 打刻成功可否 |
+| ip | text | クライアントIP（cf-connecting-ip 等） |
+| created_at | timestamptz DEFAULT now() | |
+
+INDEX (ip, created_at) / (shop_id, created_at)
+RLS: オーナーは自店分のみ参照可（将来の監査UI用）。service_role が書き込み。
 
 ---
 
