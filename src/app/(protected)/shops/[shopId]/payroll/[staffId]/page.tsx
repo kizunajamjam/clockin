@@ -2,8 +2,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { calcMonthlyPayroll, formatMinutes } from '@/lib/payroll'
+import { calcMonthlyPayroll, calcCustomLines, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
 import { CsvDownloadButton } from './CsvDownloadButton'
+import { CustomRecordsForm } from './CustomRecordsForm'
 
 export default async function StaffPayrollPage({
   params,
@@ -51,6 +52,15 @@ export default async function StaffPayrollPage({
     night_rate_included: ss.night_rate_included,
   })
 
+  // カスタム給与項目（店舗の項目定義 × 当月の入力実績）
+  const [{ data: itemsData }, { data: customRecData }] = await Promise.all([
+    admin.from('salary_custom_items').select('id, name, type, unit_price').eq('shop_id', shopId).order('sort_order'),
+    admin.from('salary_custom_records').select('item_id, value').eq('shop_id', shopId).eq('staff_id', staffId).eq('year_month', targetYm),
+  ])
+  const customItems = (itemsData ?? []) as CustomItem[]
+  const { lines: customLines, total: customTotal } = calcCustomLines(customItems, (customRecData ?? []) as CustomRecord[])
+  const grandTotal = payroll.grand_total + customTotal
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
@@ -63,9 +73,9 @@ export default async function StaffPayrollPage({
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">支給合計</span>
-            <span className="text-2xl font-bold">¥{payroll.grand_total.toLocaleString()}</span>
+            <span className="text-2xl font-bold">¥{grandTotal.toLocaleString()}</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-sm text-center border-t border-gray-100 pt-3">
+          <div className="grid grid-cols-4 gap-3 text-sm text-center border-t border-gray-100 pt-3">
             <div>
               <p className="text-xs text-gray-400">基本給</p>
               <p className="font-medium">¥{payroll.total_base_pay.toLocaleString()}</p>
@@ -78,17 +88,31 @@ export default async function StaffPayrollPage({
               <p className="text-xs text-gray-400">交通費</p>
               <p className="font-medium">¥{payroll.total_transport_fee.toLocaleString()}</p>
             </div>
+            <div>
+              <p className="text-xs text-gray-400">カスタム</p>
+              <p className="font-medium">¥{customTotal.toLocaleString()}</p>
+            </div>
           </div>
           <div className="text-xs text-gray-400 text-center border-t border-gray-100 pt-3">
             勤務時間合計: {formatMinutes(payroll.total_work_minutes)} / 出勤日数: {payroll.work_days}日
           </div>
         </div>
 
+        {/* カスタム項目入力 */}
+        {customItems.length > 0 ? (
+          <CustomRecordsForm shopId={shopId} staffId={staffId} yearMonth={targetYm} initialLines={customLines} />
+        ) : (
+          <Link href={`/shops/${shopId}/salary-items`}
+            className="block bg-white rounded-xl border border-dashed border-gray-300 px-4 py-3 text-center text-sm text-gray-500 hover:border-gray-400">
+            ＋ カスタム給与項目を設定する（手当・歩合・実費など）
+          </Link>
+        )}
+
         {/* 日別明細 */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-medium">日別明細</h2>
-            <CsvDownloadButton payroll={payroll} staffName={staffRecord.name} ym={targetYm} />
+            <CsvDownloadButton payroll={payroll} staffName={staffRecord.name} ym={targetYm} customLines={customLines} customTotal={customTotal} grandTotal={grandTotal} />
           </div>
           {payroll.days.length === 0 ? (
             <div className="py-8 text-center text-gray-400 text-sm">勤務記録がありません</div>

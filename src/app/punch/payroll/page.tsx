@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
-import { calcMonthlyPayroll, formatMinutes } from '@/lib/payroll'
+import { calcMonthlyPayroll, calcCustomLines, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
 import Link from 'next/link'
 
 export default async function StaffPayrollPage({
@@ -45,6 +45,7 @@ export default async function StaffPayrollPage({
 
   let payroll = null
   let incomeAlert = null
+  let customTotal = 0
 
   if (selectedShop) {
     const { data: records } = await admin
@@ -66,17 +67,32 @@ export default async function StaffPayrollPage({
       }
     )
 
-    // 年収アラートチェック（今年の累計）
+    // カスタム給与項目（当月）
+    const [{ data: itemsData }, { data: customRecData }] = await Promise.all([
+      admin.from('salary_custom_items').select('id, name, type, unit_price').eq('shop_id', selectedShop.id).order('sort_order'),
+      admin.from('salary_custom_records').select('item_id, value').eq('shop_id', selectedShop.id).eq('staff_id', staffRecord.id).eq('year_month', targetYm),
+    ])
+    const customItems = (itemsData ?? []) as CustomItem[]
+    customTotal = calcCustomLines(customItems, (customRecData ?? []) as CustomRecord[]).total
+
+    // 年収アラートチェック（今年の累計。カスタム項目も含める）
     if (staffRecord.income_alert_amount) {
       const yearStart = new Date(year, 0, 1)
-      const { data: ytdRecords } = await admin
-        .from('attendances')
-        .select('date, clocked_in_at, clocked_out_at, break_minutes')
-        .eq('staff_id', staffRecord.id)
-        .eq('shop_id', selectedShop.id)
-        .gte('date', yearStart.toLocaleDateString('sv-SE'))
-        .lt('date', monthEnd.toLocaleDateString('sv-SE'))
-        .order('date')
+      const [{ data: ytdRecords }, { data: ytdCustomRec }] = await Promise.all([
+        admin.from('attendances')
+          .select('date, clocked_in_at, clocked_out_at, break_minutes')
+          .eq('staff_id', staffRecord.id)
+          .eq('shop_id', selectedShop.id)
+          .gte('date', yearStart.toLocaleDateString('sv-SE'))
+          .lt('date', monthEnd.toLocaleDateString('sv-SE'))
+          .order('date'),
+        admin.from('salary_custom_records')
+          .select('item_id, value')
+          .eq('staff_id', staffRecord.id)
+          .eq('shop_id', selectedShop.id)
+          .gte('year_month', `${year}-01`)
+          .lte('year_month', targetYm),
+      ])
 
       const ytdPayroll = calcMonthlyPayroll(
         (ytdRecords ?? []).map(r => ({ ...r, break_minutes: r.break_minutes ?? 0 })),
@@ -87,9 +103,11 @@ export default async function StaffPayrollPage({
           night_rate_included: selectedShop.night_rate_included ?? false,
         }
       )
+      const ytdCustomTotal = calcCustomLines(customItems, (ytdCustomRec ?? []) as CustomRecord[]).total
+      const ytdGrand = ytdPayroll.grand_total + ytdCustomTotal
 
-      if (ytdPayroll.grand_total >= staffRecord.income_alert_amount) {
-        incomeAlert = { ytd: ytdPayroll.grand_total, threshold: staffRecord.income_alert_amount }
+      if (ytdGrand >= staffRecord.income_alert_amount) {
+        incomeAlert = { ytd: ytdGrand, threshold: staffRecord.income_alert_amount }
       }
     }
   }
@@ -166,9 +184,15 @@ export default async function StaffPayrollPage({
                   <span>¥{payroll.total_transport_fee.toLocaleString()}</span>
                 </div>
               )}
+              {customTotal > 0 && (
+                <div className="flex justify-between">
+                  <span>カスタム項目</span>
+                  <span>¥{customTotal.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-gray-900 border-t border-gray-100 pt-2 mt-2">
                 <span>支給合計</span>
-                <span>¥{payroll.grand_total.toLocaleString()}</span>
+                <span>¥{(payroll.grand_total + customTotal).toLocaleString()}</span>
               </div>
             </div>
           </div>

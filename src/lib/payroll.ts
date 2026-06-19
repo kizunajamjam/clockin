@@ -129,3 +129,55 @@ export function calcMonthlyPayroll(
 export function formatMinutes(mins: number): string {
   return `${Math.floor(mins / 60)}h${(mins % 60).toString().padStart(2, '0')}m`
 }
+
+// ── カスタム給与項目 ─────────────────────────────────────────
+export type CustomItemType = 'count_unit' | 'fixed' | 'percentage' | 'expense' | 'time_unit'
+
+export type CustomItem = {
+  id: string
+  name: string
+  type: CustomItemType
+  unit_price: number | null
+}
+
+export type CustomRecord = { item_id: string; value: number }
+
+export const CUSTOM_TYPE_LABEL: Record<CustomItemType, string> = {
+  count_unit: '件数×単価',
+  fixed: '固定額',
+  percentage: '売上×歩合',
+  expense: '実費',
+  time_unit: '時間×単価',
+}
+
+// 「入力値(value)」と項目定義から支給額を算出する
+export function customItemAmount(item: Pick<CustomItem, 'type' | 'unit_price'>, value: number): number {
+  const up = item.unit_price ?? 0
+  switch (item.type) {
+    case 'count_unit': return Math.round(value * up)   // 件数 × 単価
+    case 'time_unit':  return Math.round(value * up)   // 時間数 × 単価
+    case 'percentage': return Math.round(value * up / 100) // 売上 × 率(%)
+    case 'fixed':      return Math.round(value)         // value=金額
+    case 'expense':    return Math.round(value)         // value=金額
+    default:           return 0
+  }
+}
+
+export type CustomLine = {
+  itemId: string
+  name: string
+  type: CustomItemType
+  unitPrice: number | null
+  value: number
+  amount: number
+}
+
+// 店舗の項目定義 × スタッフの月次実績 → 行ごとの金額と合計
+export function calcCustomLines(items: CustomItem[], records: CustomRecord[]): { lines: CustomLine[]; total: number } {
+  const recMap = new Map(records.map(r => [r.item_id, r.value]))
+  const lines: CustomLine[] = items.map(it => {
+    const value = recMap.get(it.id) ?? 0
+    return { itemId: it.id, name: it.name, type: it.type, unitPrice: it.unit_price, value, amount: customItemAmount(it, value) }
+  })
+  return { lines, total: lines.reduce((s, l) => s + l.amount, 0) }
+}

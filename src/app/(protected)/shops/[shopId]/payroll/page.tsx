@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { calcMonthlyPayroll, formatMinutes } from '@/lib/payroll'
+import { calcMonthlyPayroll, calcCustomLines, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
 import { isProStatus } from '@/lib/plan'
 
 export default async function PayrollPage({
@@ -60,11 +60,22 @@ export default async function PayrollPage({
   const startDate = `${targetYm}-01`
   const endDate = new Date(year, month, 0).toLocaleDateString('sv-SE')
 
-  // スタッフ一覧
-  const { data: shopStaff } = await admin
-    .from('shop_staff')
-    .select('staff_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, staff(id, name)')
-    .eq('shop_id', shopId)
+  // スタッフ一覧 + カスタム給与項目（店舗単位）+ 当月の実績（全スタッフ分）
+  const [{ data: shopStaff }, { data: itemsData }, { data: customRecData }] = await Promise.all([
+    admin.from('shop_staff')
+      .select('staff_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, staff(id, name)')
+      .eq('shop_id', shopId),
+    admin.from('salary_custom_items').select('id, name, type, unit_price').eq('shop_id', shopId).order('sort_order'),
+    admin.from('salary_custom_records').select('staff_id, item_id, value').eq('shop_id', shopId).eq('year_month', targetYm),
+  ])
+
+  const customItems = (itemsData ?? []) as CustomItem[]
+  const recByStaff = new Map<string, CustomRecord[]>()
+  for (const r of (customRecData ?? []) as { staff_id: string; item_id: string; value: number }[]) {
+    const arr = recByStaff.get(r.staff_id) ?? []
+    arr.push({ item_id: r.item_id, value: r.value })
+    recByStaff.set(r.staff_id, arr)
+  }
 
   const staffPayrolls = await Promise.all(
     (shopStaff ?? []).map(async ss => {
@@ -88,7 +99,8 @@ export default async function PayrollPage({
         night_rate_included: ss.night_rate_included,
       })
 
-      return { staffId: st.id, staffName: st.name, payroll }
+      const { total: customTotal } = calcCustomLines(customItems, recByStaff.get(st.id) ?? [])
+      return { staffId: st.id, staffName: st.name, payroll, customTotal, total: payroll.grand_total + customTotal }
     })
   )
 
@@ -101,7 +113,7 @@ export default async function PayrollPage({
   const nextYm = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`
   const isCurrentMonth = targetYm === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  const grandTotal = validPayrolls.reduce((s, p) => s + p.payroll.grand_total, 0)
+  const grandTotal = validPayrolls.reduce((s, p) => s + p.total, 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,12 +142,12 @@ export default async function PayrollPage({
           </div>
         ) : (
           <div className="space-y-3">
-            {validPayrolls.map(({ staffId, staffName, payroll }) => (
+            {validPayrolls.map(({ staffId, staffName, payroll, customTotal, total }) => (
               <Link key={staffId} href={`/shops/${shopId}/payroll/${staffId}?ym=${targetYm}`}
                 className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-400 transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">{staffName}</span>
-                  <span className="font-bold text-lg">¥{payroll.grand_total.toLocaleString()}</span>
+                  <span className="font-bold text-lg">¥{total.toLocaleString()}</span>
                 </div>
                 <div className="flex gap-4 text-xs text-gray-400">
                   <span>勤務 {formatMinutes(payroll.total_work_minutes)}</span>
@@ -145,11 +157,20 @@ export default async function PayrollPage({
                   {payroll.total_transport_fee > 0 && (
                     <span>交通費 ¥{payroll.total_transport_fee.toLocaleString()}</span>
                   )}
+                  {customTotal > 0 && (
+                    <span>カスタム ¥{customTotal.toLocaleString()}</span>
+                  )}
                 </div>
               </Link>
             ))}
           </div>
         )}
+
+        {/* カスタム項目の管理導線 */}
+        <Link href={`/shops/${shopId}/salary-items`}
+          className="block text-center text-sm text-gray-500 hover:text-gray-900 py-2">
+          カスタム給与項目を管理 →
+        </Link>
 
         {/* 合計 */}
         {validPayrolls.length > 0 && (
