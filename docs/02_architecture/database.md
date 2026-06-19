@@ -65,9 +65,14 @@ organizationに紐づく従業員マスタ。複数店舗に所属可能。
 | gender | text | male / female / other。賃金台帳の法定記載事項（労基法108条） |
 | email | text | 招待メール送信先 |
 | pin | text | タブレット打刻用4桁PIN（PBKDF2ハッシュ・saltはstaff.id） |
+| pin_failed_count | integer NOT NULL DEFAULT 0 | PIN連続失敗回数（ブルートフォース対策） |
+| pin_locked_until | timestamptz | PINロック解除時刻。NULL/過去ならロックなし |
 | invite_token | text UNIQUE | 招待URL用トークン。招待承諾後にNULLクリア |
 | income_alert_amount | integer | 年収アラート閾値（円）。NULLで無効 |
 | created_at | timestamptz DEFAULT now() | |
+
+PINロックアウト: キオスク打刻で連続5回失敗すると5分間ロック（`pin_locked_until`）。
+未認証経路のためアプリ層で必須。詳細は[詳細設計書 §2.3](../01_design/detailed-design.md)。
 
 ---
 
