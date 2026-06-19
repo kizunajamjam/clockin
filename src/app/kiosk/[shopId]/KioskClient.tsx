@@ -45,12 +45,12 @@ export function KioskClient({ shopId, shopName, staffList }: {
   }
 
   function appendPin(digit: string) {
-    if (pin.length >= 4) return
+    if (pin.length >= 6) return
     setPin(prev => prev + digit)
   }
 
   function submitPin() {
-    if (!selectedStaff || pin.length !== 4) return
+    if (!selectedStaff || pin.length < 4 || pin.length > 6) return
     const fd = new FormData()
     fd.set('staff_id', selectedStaff.id)
     fd.set('shop_id', shopId)
@@ -123,9 +123,9 @@ export function KioskClient({ shopId, shopName, staffList }: {
         <p className="text-gray-400 text-sm mb-1">PIN入力</p>
         <h2 className="text-2xl font-bold mb-6">{selectedStaff?.name}</h2>
 
-        {/* PIN表示 */}
+        {/* PIN表示（4〜6桁。最低4マス、入力に応じて最大6マスまで増える） */}
         <div className="flex gap-3 mb-4">
-          {[0, 1, 2, 3].map(i => (
+          {Array.from({ length: Math.min(6, Math.max(4, pin.length)) }).map((_, i) => (
             <div key={i} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-bold ${
               pin.length > i ? 'border-white bg-white text-gray-900' : 'border-gray-600'
             }`}>
@@ -156,7 +156,7 @@ export function KioskClient({ shopId, shopName, staffList }: {
 
         <button
           onClick={submitPin}
-          disabled={pin.length !== 4 || isPending}
+          disabled={pin.length < 4 || pin.length > 6 || isPending}
           className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl disabled:opacity-40 hover:bg-gray-100 transition-colors"
         >
           {isPending ? '確認中...' : punchType === 'in' ? '出勤する' : '退勤する'}

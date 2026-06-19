@@ -1,10 +1,22 @@
 'use server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyPin, hashPin, needsRehash } from '@/lib/pin'
+import { headers } from 'next/headers'
 
-// PINブルートフォース対策：連続N回失敗でM分ロック
+// PINブルートフォース対策：連続N回失敗でM分ロック（staff単位）
 const MAX_PIN_ATTEMPTS = 5
 const PIN_LOCK_MINUTES = 5
+// IP単位スロットリング：同一IPからの失敗がW分間にM件でブロック（staff横断の総当たり対策）
+const IP_MAX_FAILS = 20
+const IP_WINDOW_MINUTES = 10
+
+// クライアントIPを取得（Cloudflare / 一般的なプロキシヘッダ）
+async function getClientIp(): Promise<string | null> {
+  const h = await headers()
+  return h.get('cf-connecting-ip')
+    ?? h.get('x-forwarded-for')?.split(',')[0].trim()
+    ?? null
+}
 
 // 未退勤レコードがあれば'out'、なければ'in'（複数回打刻対応）
 export async function getAttendanceStatus(staffId: string, shopId: string): Promise<'in' | 'out'> {
@@ -33,9 +45,28 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
   const pin = formData.get('pin') as string
 
   if (!staffId || !shopId || !pin) return { success: false, error: '入力が不正です' }
-  if (!/^\d{4}$/.test(pin)) return { success: false, error: 'PINは4桁の数字です' }
+  if (!/^\d{4,6}$/.test(pin)) return { success: false, error: 'PINは4〜6桁の数字です' }
 
   const admin = createAdminClient()
+  const ip = await getClientIp()
+
+  // 監査ログ記録（失敗時はIPスロットリングの母数になる）
+  const logAttempt = (success: boolean, sid: string | null) =>
+    admin.from('punch_attempts').insert({ shop_id: shopId, staff_id: sid, success, ip })
+
+  // IP単位スロットリング（同一IPからの失敗集中をブロック）
+  if (ip) {
+    const since = new Date(Date.now() - IP_WINDOW_MINUTES * 60000).toISOString()
+    const { count } = await admin
+      .from('punch_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip', ip)
+      .eq('success', false)
+      .gte('created_at', since)
+    if ((count ?? 0) >= IP_MAX_FAILS) {
+      return { success: false, error: '試行回数が多すぎます。しばらく待ってから再試行してください' }
+    }
+  }
 
   const { data: staff } = await admin
     .from('staff')
@@ -43,7 +74,7 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
     .eq('id', staffId)
     .single()
 
-  if (!staff) return { success: false, error: 'スタッフが見つかりません' }
+  if (!staff) { await logAttempt(false, null); return { success: false, error: 'スタッフが見つかりません' } }
   if (!staff.pin) return { success: false, error: 'PINが設定されていません' }
 
   // ロック中か確認
@@ -51,6 +82,7 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
   const lockedUntil = staff.pin_locked_until ? new Date(staff.pin_locked_until) : null
   if (lockedUntil && lockedUntil > nowDate) {
     const mins = Math.ceil((lockedUntil.getTime() - nowDate.getTime()) / 60000)
+    await logAttempt(false, staffId)
     return { success: false, error: `PINの試行回数が上限に達しました。約${mins}分後に再試行してください` }
   }
   // ロック期限切れなら失敗カウントはリセット扱い
@@ -59,6 +91,7 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
   const valid = await verifyPin(pin, staffId, staff.pin)
   if (!valid) {
     const failed = prevFailed + 1
+    await logAttempt(false, staffId)
     if (failed >= MAX_PIN_ATTEMPTS) {
       const newLock = new Date(nowDate.getTime() + PIN_LOCK_MINUTES * 60000).toISOString()
       await admin.from('staff').update({ pin_failed_count: failed, pin_locked_until: newLock }).eq('id', staffId)
@@ -67,6 +100,8 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
     await admin.from('staff').update({ pin_failed_count: failed, pin_locked_until: null }).eq('id', staffId)
     return { success: false, error: `PINが正しくありません（あと${MAX_PIN_ATTEMPTS - failed}回）` }
   }
+
+  await logAttempt(true, staffId)
 
   // 成功 → 失敗カウンタ/ロックをリセット。旧形式ハッシュなら現行パラメータへ昇格
   const reset: Record<string, unknown> = {}

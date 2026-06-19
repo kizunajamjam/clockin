@@ -75,8 +75,8 @@ export function StaffEditForm({
 
       {hasTablet && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">PIN変更（4桁・空白で変更なし）</label>
-          <input type="text" name="pin" maxLength={4} pattern="\d{4}" placeholder="新しいPIN"
+          <label className="block text-sm font-medium text-gray-700 mb-1">PIN変更（4〜6桁・空白で変更なし）</label>
+          <input type="text" name="pin" inputMode="numeric" maxLength={6} pattern="\d{4,6}" placeholder="新しいPIN"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
         </div>
       )}

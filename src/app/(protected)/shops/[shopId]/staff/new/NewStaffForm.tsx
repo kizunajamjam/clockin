@@ -74,9 +74,10 @@ export function NewStaffForm({
         <div className="space-y-4 border-t border-gray-100 pt-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">タブレット打刻設定</h2>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">PIN（4桁）<span className="text-red-500">*</span></label>
-            <input name="pin" type="text" inputMode="numeric" pattern="\d{4}" maxLength={4} placeholder="例：1234"
+            <label className="text-sm font-medium text-gray-700">PIN（4〜6桁）<span className="text-red-500">*</span></label>
+            <input name="pin" type="text" inputMode="numeric" pattern="\d{4,6}" maxLength={6} placeholder="例：1234"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" />
+            <p className="text-xs text-gray-400">4〜6桁の数字で設定できます（長いほど安全）</p>
           </div>
         </div>
       )}

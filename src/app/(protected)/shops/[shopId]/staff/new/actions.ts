@@ -25,7 +25,7 @@ export async function createStaff(prevState: State, formData: FormData): Promise
 
   if (!name) return { error: 'スタッフ名を入力してください' }
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) return { error: '時給を正しく入力してください' }
-  if (pin && !/^\d{4}$/.test(pin)) return { error: 'PINは4桁の数字で入力してください' }
+  if (pin && !/^\d{4,6}$/.test(pin)) return { error: 'PINは4〜6桁の数字で入力してください' }
 
   const admin = createAdminClient()
 
