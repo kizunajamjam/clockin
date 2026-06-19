@@ -162,7 +162,6 @@ export function ShiftCalendar({ shopId, staffList, initialShifts, shiftRequests 
         shopId={shopId}
         staff={selectedStaff}
         days={days}
-        viewMode={viewMode}
         weekStart={weekStart}
         rangeLabel={rangeLabel}
         shifts={shifts.filter(s => s.staff_id === selectedStaff.id)}
@@ -290,11 +289,10 @@ export function ShiftCalendar({ shopId, staffList, initialShifts, shiftRequests 
 }
 
 // ── スタッフ別シフト入力画面 ──────────────────────────────────
-function StaffShiftEditor({ shopId, staff, days, viewMode, weekStart, rangeLabel, shifts, shiftRequests, onBack, onDelete, onCreated, isPending, onPrev, onNext, onToday, today }: {
+function StaffShiftEditor({ shopId, staff, days, weekStart, rangeLabel, shifts, shiftRequests, onBack, onDelete, onCreated, isPending, onPrev, onNext, onToday, today }: {
   shopId: string
   staff: Staff
   days: Date[]
-  viewMode: ViewMode
   weekStart: WeekStart
   rangeLabel: string
   shifts: Shift[]
@@ -462,22 +460,20 @@ function StaffShiftEditor({ shopId, staff, days, viewMode, weekStart, rangeLabel
           </div>
         </div>
 
-        {/* 曜日一括チェック（週・2週表示時のみ） */}
-        {viewMode !== 'month' && (
-          <div className="flex gap-1 flex-wrap">
-            <span className="text-xs text-gray-400 self-center mr-1">曜日一括：</span>
-            {getWeekdays(weekStart).map((w, i) => {
-              // i は列インデックス。実際の曜日番号(0=日)に変換
-              const actualDow = weekStart === 'mon' ? (i + 1) % 7 : i
-              return (
-                <button key={i} onClick={() => selectWeekday(actualDow)} type="button"
-                  className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-100">
-                  {w}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        {/* 曜日一括チェック（週・2週・月すべてで利用可） */}
+        <div className="flex gap-1 flex-wrap">
+          <span className="text-xs text-gray-400 self-center mr-1">曜日一括：</span>
+          {getWeekdays(weekStart).map((w, i) => {
+            // i は列インデックス。実際の曜日番号(0=日)に変換
+            const actualDow = weekStart === 'mon' ? (i + 1) % 7 : i
+            return (
+              <button key={i} onClick={() => selectWeekday(actualDow)} type="button"
+                className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-100">
+                {w}
+              </button>
+            )
+          })}
+        </div>
 
         {/* 日付選択リスト（縦並び） */}
         <div className="space-y-1 max-h-72 overflow-y-auto pr-1">

@@ -48,6 +48,8 @@ RLS: owner_user_id = auth.uid() のみ読み書き可
 | gps_lng | float8 | 店舗経度 |
 | gps_radius_m | integer DEFAULT 300 | GPS許可半径（m） |
 | gps_enabled | boolean DEFAULT true | 個人スマホGPS確認ON/OFF |
+| week_start | text NOT NULL DEFAULT 'mon' | シフト週始め（mon/sun） |
+| employment_insurance_rate | numeric NOT NULL DEFAULT 0.006 | 雇用保険料率（労働者負担・小数。0.006=0.6%） |
 | created_at | timestamptz DEFAULT now() | |
 
 ---

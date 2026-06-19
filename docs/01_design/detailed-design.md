@@ -191,6 +191,12 @@ amberバナーを表示（[punch/payroll/page.tsx](../../src/app/punch/payroll/p
 - 反映先: 個人明細の支給合計・CSV、給与一覧の各スタッフ合計、スタッフ給与画面（§3.4）。
   基本給計算（`calcMonthlyPayroll`）とは独立に `calcCustomLines` で算出し、表示側で合算する。
 
+### 3.6 控除（雇用保険料）
+- `shops.employment_insurance_rate`（小数・店舗設定で変更可。既定 0.006＝0.6%）を労働者負担率とする。
+- `employmentInsurance(grossTotal, rate)` = `floor(支給総額 × 率)`。支給総額は交通費・カスタム項目を含む。
+- 差引支給額 = 支給総額 − 雇用保険料。個人明細・スタッフ給与画面・CSVに表示。
+- 所得税（源泉徴収）は法令精度（月額表）が必要なため未実装（[roadmap](../03_development/roadmap.md)）。
+
 ---
 
 ## 4. シフト管理
