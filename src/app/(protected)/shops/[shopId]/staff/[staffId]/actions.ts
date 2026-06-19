@@ -39,7 +39,7 @@ export async function updateStaff(prevState: State, formData: FormData): Promise
   const staffUpdate: Record<string, unknown> = { name, gender, income_alert_amount: incomeAlertAmount }
   if (pin) staffUpdate.pin = await hashPin(pin, staffId)
 
-  const { error: staffErr } = await admin.from('staff').update(staffUpdate).eq('id', staffId)
+  const { error: staffErr } = await admin.from('staff').update(staffUpdate).eq('id', staffId).eq('organization_id', shop.organization_id)
   if (staffErr) return { error: 'スタッフ情報の更新に失敗しました: ' + staffErr.message }
 
   const { error: ssErr } = await admin.from('shop_staff').update({

@@ -44,15 +44,23 @@ export async function createStaff(prevState: State, formData: FormData): Promise
     .single()
   if (!org) return { error: '権限がありません' }
 
-  // フリープラン: 5名上限チェック
-  const { count } = await admin
-    .from('shop_staff')
-    .select('id', { count: 'exact', head: true })
-    .eq('shop_id', shopId)
-    .eq('is_active', true)
-  // TODO: プロプランは上限なし（subscription確認を追加）
-  if ((count ?? 0) >= 5) {
-    return { error: 'フリープランのスタッフ上限（5名）に達しています。プロプランにアップグレードしてください' }
+  // フリープラン: 5名上限チェック（プロプランは無制限）
+  const { data: sub } = await admin
+    .from('subscriptions')
+    .select('status')
+    .eq('organization_id', shop.organization_id)
+    .single()
+  const isPro = sub?.status === 'active' || sub?.status === 'trialing'
+
+  if (!isPro) {
+    const { count } = await admin
+      .from('shop_staff')
+      .select('id', { count: 'exact', head: true })
+      .eq('shop_id', shopId)
+      .eq('is_active', true)
+    if ((count ?? 0) >= 5) {
+      return { error: 'フリープランのスタッフ上限（5名）に達しています。プロプランにアップグレードしてください' }
+    }
   }
 
   // タブレット打刻が有効な場合はPIN必須

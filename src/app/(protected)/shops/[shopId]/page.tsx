@@ -1,22 +1,43 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 
 export default async function ShopPage({ params }: { params: Promise<{ shopId: string }> }) {
   const { shopId } = await params
+
+  // 認可: ログイン中ユーザーが所有する組織配下の店舗に限定（招待トークン等の漏洩防止）
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const admin = createAdminClient()
+  const { data: shop } = await admin
+    .from('shops')
+    .select('id, name, organization_id, punch_modes, gps_enabled, gps_radius_m')
+    .eq('id', shopId)
+    .single()
+  if (!shop) notFound()
+
+  const { data: org } = await admin
+    .from('organizations')
+    .select('id')
+    .eq('id', shop.organization_id)
+    .eq('owner_user_id', user.id)
+    .single()
+  if (!org) notFound()
+
   const headersList = await headers()
   const host = headersList.get('host') ?? 'localhost:3000'
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
   const baseUrl = `${protocol}://${host}`
 
-  const [{ data: shop }, { data: shopStaff }] = await Promise.all([
-    admin.from('shops').select('id, name, punch_modes, gps_enabled, gps_radius_m').eq('id', shopId).single(),
-    admin.from('shop_staff').select('staff_id, staff(id, name, invite_token)').eq('shop_id', shopId).eq('is_active', true),
-  ])
-
-  if (!shop) notFound()
+  const { data: shopStaff } = await admin
+    .from('shop_staff')
+    .select('staff_id, staff(id, name, invite_token)')
+    .eq('shop_id', shopId)
+    .eq('is_active', true)
 
   const staffList = (shopStaff ?? []).flatMap(ss => {
     const s = ss.staff

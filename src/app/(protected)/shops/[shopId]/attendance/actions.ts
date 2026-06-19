@@ -44,6 +44,7 @@ export async function correctAttendance(prevState: State, formData: FormData): P
       note,
     })
     .eq('id', attendanceId)
+    .eq('shop_id', shopId)   // 検証済み店舗に限定（他店舗の勤怠改ざんを防止）
 
   if (error) return { error: '更新に失敗しました: ' + error.message }
 
