@@ -1,6 +1,7 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isOrgPro } from '@/lib/plan'
 import { redirect } from 'next/navigation'
 
 type State = { error: string } | null
@@ -40,6 +41,17 @@ export async function createShop(prevState: State, formData: FormData): Promise<
     .single()
 
   if (!org) return { error: '組織が見つかりません' }
+
+  // フリープランは1店舗まで（プロは無制限）
+  if (!(await isOrgPro(admin, org.id))) {
+    const { count } = await admin
+      .from('shops')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', org.id)
+    if ((count ?? 0) >= 1) {
+      return { error: 'フリープランは1店舗までです。プロプランにアップグレードしてください' }
+    }
+  }
 
   const { data: shop, error } = await admin
     .from('shops')

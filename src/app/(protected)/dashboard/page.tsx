@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isProStatus } from '@/lib/plan'
 import { logout } from '@/app/logout/actions'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
     org ? admin.from('shops').select('id, name').eq('organization_id', org.id) : Promise.resolve({ data: [] }),
     org ? admin.from('subscriptions').select('status').eq('organization_id', org.id).single() : Promise.resolve({ data: null }),
   ])
-  const isPro = sub?.status === 'active' || sub?.status === 'trialing'
+  const isPro = isProStatus(sub?.status)
 
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
 

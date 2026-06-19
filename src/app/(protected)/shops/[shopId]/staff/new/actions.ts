@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hashPin } from '@/lib/pin'
+import { isProStatus } from '@/lib/plan'
 import { redirect } from 'next/navigation'
 
 type State = { error: string } | null
@@ -50,9 +51,8 @@ export async function createStaff(prevState: State, formData: FormData): Promise
     .select('status')
     .eq('organization_id', shop.organization_id)
     .single()
-  const isPro = sub?.status === 'active' || sub?.status === 'trialing'
 
-  if (!isPro) {
+  if (!isProStatus(sub?.status)) {
     const { count } = await admin
       .from('shop_staff')
       .select('id', { count: 'exact', head: true })

@@ -3,10 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { calcMonthlyPayroll, formatMinutes } from '@/lib/payroll'
-
-function isPro(status: string | null): boolean {
-  return status === 'active' || status === 'trialing'
-}
+import { isProStatus } from '@/lib/plan'
 
 export default async function PayrollPage({
   params,
@@ -31,7 +28,7 @@ export default async function PayrollPage({
 
   // プラン確認
   const { data: sub } = await admin.from('subscriptions').select('status').eq('organization_id', shop.organization_id).single()
-  const proEnabled = isPro(sub?.status ?? null)
+  const proEnabled = isProStatus(sub?.status)
 
   if (!proEnabled) {
     return (

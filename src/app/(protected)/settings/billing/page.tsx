@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isProStatus } from '@/lib/plan'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { BillingClient } from './BillingClient'
@@ -36,7 +37,7 @@ export default async function BillingPage({
     ? await admin.from('shop_staff').select('id', { count: 'exact', head: true }).in('shop_id', shopIds).eq('is_active', true)
     : { count: 0 }
 
-  const isPro = sub?.status === 'active' || sub?.status === 'trialing'
+  const isPro = isProStatus(sub?.status)
 
   return (
     <div className="min-h-screen bg-gray-50">
