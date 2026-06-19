@@ -1,6 +1,8 @@
 'use client'
 import { useState, useTransition } from 'react'
 import { punchSmartphone } from './actions'
+import { AdBanner } from '@/components/AdBanner'
+import { PushPermission } from '@/components/PushPermission'
 
 type Shop = { id: string; name: string; gps_enabled: boolean; gps_radius_m: number }
 type Screen = 'select' | 'punching' | 'result' | 'error'
@@ -90,22 +92,30 @@ export function PunchClient({ staffName, shops }: { staffName: string; shops: Sh
   // 完了
   if (screen === 'result' && result) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <div className={`text-6xl mb-4 ${result.type === 'in' ? 'text-green-500' : 'text-blue-500'}`}>
-          ✓
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 space-y-4">
+        <div className="flex flex-col items-center">
+          <div className={`text-6xl mb-4 ${result.type === 'in' ? 'text-green-500' : 'text-blue-500'}`}>
+            ✓
+          </div>
+          <h2 className="text-xl font-bold mb-1">{staffName}</h2>
+          <p className="text-gray-600 mb-1">{result.shopName}</p>
+          <p className="text-lg font-medium text-gray-800">
+            {result.type === 'in' ? '出勤しました' : '退勤しました'}
+          </p>
+          <p className="text-sm text-gray-400 mt-1">{new Date().toLocaleTimeString('ja-JP')}</p>
+          <button
+            onClick={() => { setScreen(shops.length === 1 ? 'punching' : 'select'); setResult(null) }}
+            className="mt-6 text-sm text-gray-400 hover:text-gray-600"
+          >
+            戻る
+          </button>
         </div>
-        <h2 className="text-xl font-bold mb-1">{staffName}</h2>
-        <p className="text-gray-600 mb-1">{result.shopName}</p>
-        <p className="text-lg font-medium text-gray-800">
-          {result.type === 'in' ? '出勤しました' : '退勤しました'}
-        </p>
-        <p className="text-sm text-gray-400 mt-1">{new Date().toLocaleTimeString('ja-JP')}</p>
-        <button
-          onClick={() => { setScreen(shops.length === 1 ? 'punching' : 'select'); setResult(null) }}
-          className="mt-6 text-sm text-gray-400 hover:text-gray-600"
-        >
-          戻る
-        </button>
+        {/* プッシュ通知許可（未設定のみ表示） */}
+        <div className="w-full max-w-xs">
+          <PushPermission />
+        </div>
+        {/* 広告（打刻ボタンから離れた確認画面のみ表示） */}
+        <AdBanner className="w-full max-w-xs" />
       </div>
     )
   }

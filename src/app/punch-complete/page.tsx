@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export default function SetupCompletePage() {
+export default function PunchCompletePage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-sm w-full text-center">

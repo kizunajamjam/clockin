@@ -48,5 +48,5 @@ export async function acceptInvite(prevState: State, formData: FormData): Promis
     return { error: 'アカウントの紐付けに失敗しました' }
   }
 
-  redirect('/punch/setup-complete')
+  redirect('/punch-complete')
 }

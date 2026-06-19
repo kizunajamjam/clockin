@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/signup') ||
     pathname.startsWith('/invite') ||          // 招待登録は認証不要
     pathname.startsWith('/kiosk') ||           // タブレット打刻は認証不要
-    pathname.startsWith('/punch/setup-complete') ||  // 招待完了ページは認証不要
+    pathname.startsWith('/punch-complete') ||       // 招待完了ページは認証不要
     pathname === '/'
 
   if (!user && !isPublic) {

@@ -24,9 +24,11 @@ export default async function DashboardPage() {
     .eq('owner_user_id', user!.id)
     .single()
 
-  const { data: shops } = org
-    ? await admin.from('shops').select('id, name').eq('organization_id', org.id)
-    : { data: [] }
+  const [{ data: shops }, { data: sub }] = await Promise.all([
+    org ? admin.from('shops').select('id, name').eq('organization_id', org.id) : Promise.resolve({ data: [] }),
+    org ? admin.from('subscriptions').select('status').eq('organization_id', org.id).single() : Promise.resolve({ data: null }),
+  ])
+  const isPro = sub?.status === 'active' || sub?.status === 'trialing'
 
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
 
@@ -35,7 +37,7 @@ export default async function DashboardPage() {
   const { data: todayAttendances } = shopIds.length > 0
     ? await admin
         .from('attendances')
-        .select('shop_id, clocked_in_at, clocked_out_at')
+        .select('shop_id, staff_id, clocked_in_at, clocked_out_at')
         .in('shop_id', shopIds)
         .eq('date', today)
     : { data: [] }
@@ -75,10 +77,16 @@ export default async function DashboardPage() {
           <div className="space-y-3">
             <h2 className="text-sm font-medium text-gray-500">店舗</h2>
             {shops.map((shop) => {
-              const shopAtts = (todayAttendances ?? []).filter(a => a.shop_id === shop.id)
-              const inCount = shopAtts.filter(a => a.clocked_in_at && !a.clocked_out_at).length
-              const outCount = shopAtts.filter(a => a.clocked_out_at).length
-              const total = shopAtts.length
+              // スタッフ単位で集計（複数打刻でも実人数で数える）
+              const openByStaff = new Map<string, boolean>()
+              for (const a of (todayAttendances ?? [])) {
+                if (a.shop_id !== shop.id) continue
+                const isOpen = !!a.clocked_in_at && !a.clocked_out_at
+                openByStaff.set(a.staff_id, (openByStaff.get(a.staff_id) ?? false) || isOpen)
+              }
+              const total = openByStaff.size
+              const inCount = [...openByStaff.values()].filter(Boolean).length
+              const outCount = total - inCount
 
               return (
                 <Link key={shop.id} href={`/shops/${shop.id}`}
@@ -109,7 +117,7 @@ export default async function DashboardPage() {
           <Link href="/settings/billing"
             className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-center hover:border-gray-400 transition-colors">
             <p className="text-gray-400 text-xs mb-1">プラン</p>
-            <p className="font-medium">フリー</p>
+            <p className="font-medium">{isPro ? 'プロ' : 'フリー'}</p>
           </Link>
           <Link href="/profile"
             className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-center hover:border-gray-400 transition-colors">
