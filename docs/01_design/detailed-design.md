@@ -170,6 +170,26 @@ grand_total      = 基本給 + 深夜割増 + 交通費
 ### 3.4 年収アラート
 スタッフ給与画面で、当年1月〜対象月末の累計支給が `staff.income_alert_amount` 以上のとき
 amberバナーを表示（[punch/payroll/page.tsx](../../src/app/punch/payroll/page.tsx)）。閾値はスタッフが任意設定。
+累計にはカスタム給与項目（§3.5）の年間合計も含める。
+
+### 3.5 カスタム給与項目
+店舗ごとに追加の給与項目を定義し、スタッフ別に月次金額を加算する（プロ機能）。
+- 定義: `salary_custom_items`（shop単位）。管理UIは `/shops/[id]/salary-items`
+  （[actions](../../src/app/(protected)/shops/[shopId]/salary-items/actions.ts)）。
+- 月次実績: `salary_custom_records`（staff×item×year_month、UNIQUE）。
+  給与明細画面 [payroll/[staffId]](../../src/app/(protected)/shops/[shopId]/payroll/[staffId]/CustomRecordsForm.tsx) で入力・upsert。
+- 金額換算（[payroll.ts](../../src/lib/payroll.ts) `customItemAmount`）:
+
+| type | 入力value | 金額 |
+|---|---|---|
+| count_unit | 件数 | value × unit_price |
+| time_unit | 時間数 | value × unit_price |
+| percentage | 売上額 | value × unit_price / 100 |
+| fixed | 金額 | value |
+| expense | 金額 | value |
+
+- 反映先: 個人明細の支給合計・CSV、給与一覧の各スタッフ合計、スタッフ給与画面（§3.4）。
+  基本給計算（`calcMonthlyPayroll`）とは独立に `calcCustomLines` で算出し、表示側で合算する。
 
 ---
 

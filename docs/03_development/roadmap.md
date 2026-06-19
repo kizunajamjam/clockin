@@ -54,8 +54,8 @@
 
 | 機能 | 状態 | 備考 |
 |---|---|---|
-| カスタム給与項目 UI | ⬜ | DB スキーマは実装済み（salary_custom_items）|
-| カスタム給与入力（管理者）| ⬜ | salary_custom_records |
+| カスタム給与項目 UI | ✅ | `/shops/[id]/salary-items` で5タイプの項目をCRUD |
+| カスタム給与入力（管理者）| ✅ | 給与明細画面で月次入力→支給合計・CSVに反映 |
 | 給与明細 PDF 出力 | ⬜ | 候補: react-pdf |
 | 控除計算（雇用保険・所得税）| ⬜ | 計算式は要件定義に記載済み |
 
@@ -99,9 +99,9 @@
    （`createShiftFromRequest`）に `sendPushToStaff()`。手動一括登録はスパム回避で対象外。
    残: 出勤リマインダー（cron/Edge Functionsによる時刻トリガー）は引き続き未実装（フェーズ5）。
 
-3. **カスタム給与項目 UI**
-   `salary_custom_items` / `salary_custom_records` のスキーマは完成済み。
-   管理者が項目を登録 → 月次で金額入力 → 給与計算に加算する画面を作る
+3. ~~**カスタム給与項目 UI**~~
+   ✅ 2026-06-19 実装済み。`/shops/[id]/salary-items` で項目をCRUD、給与明細画面で
+   月次入力→支給合計・CSVに反映。`src/lib/payroll.ts` の `calcCustomLines` で金額換算。
 
 ### 中優先
 4. **勤怠修正の使いやすさ向上**
