@@ -37,6 +37,10 @@ export async function updateShop(prevState: State, formData: FormData): Promise<
 
   const weekStart = formData.get('week_start') === 'sun' ? 'sun' : 'mon'
 
+  // 雇用保険料率（%入力 → 小数。0〜10%にクランプ）
+  const eiPctRaw = parseFloat(formData.get('ei_rate_percent') as string)
+  const eiRate = Number.isFinite(eiPctRaw) ? Math.min(Math.max(eiPctRaw, 0), 10) / 100 : 0.006
+
   const { error } = await admin.from('shops').update({
     name,
     prefecture,
@@ -46,6 +50,7 @@ export async function updateShop(prevState: State, formData: FormData): Promise<
     gps_lat: gpsLat,
     gps_lng: gpsLng,
     week_start: weekStart,
+    employment_insurance_rate: eiRate,
   }).eq('id', shopId)
 
   if (error) return { error: '更新に失敗しました: ' + error.message }

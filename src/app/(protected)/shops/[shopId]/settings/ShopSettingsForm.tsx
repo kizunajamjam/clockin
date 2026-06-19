@@ -12,6 +12,7 @@ type DefaultValues = {
   gpsLng: string
   gpsRadiusM: number
   weekStart: string
+  eiRatePercent: string
 }
 
 export function ShopSettingsForm({ shopId, defaultValues: dv }: { shopId: string; defaultValues: DefaultValues }) {
@@ -69,6 +70,14 @@ export function ShopSettingsForm({ shopId, defaultValues: dv }: { shopId: string
           <option value="mon">月曜始まり</option>
           <option value="sun">日曜始まり</option>
         </select>
+      </div>
+
+      {/* 雇用保険料率 */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">雇用保険料率（労働者負担・%）</label>
+        <input type="number" name="ei_rate_percent" step="0.01" min={0} max={10} defaultValue={dv.eiRatePercent}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        <p className="text-xs text-gray-400">給与明細の控除に使用。一般の事業は 0.6%（2024年度）。0で控除なし。</p>
       </div>
 
       {/* 打刻方式 */}

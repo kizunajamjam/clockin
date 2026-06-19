@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
-import { calcMonthlyPayroll, calcCustomLines, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
+import { calcMonthlyPayroll, calcCustomLines, employmentInsurance, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
 import Link from 'next/link'
 
 export default async function StaffPayrollPage({
@@ -22,7 +22,7 @@ export default async function StaffPayrollPage({
   // 所属店舗一覧
   const { data: shopStaffList } = await admin
     .from('shop_staff')
-    .select('shop_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, shops(id, name)')
+    .select('shop_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, shops(id, name, employment_insurance_rate)')
     .eq('staff_id', staffRecord.id)
     .eq('is_active', true)
 
@@ -31,7 +31,7 @@ export default async function StaffPayrollPage({
     if (!s) return []
     const arr = Array.isArray(s) ? s : [s]
     return arr.map(shop => ({ ...shop, hourly_rate: ss.hourly_rate, transport_fee: ss.transport_fee, transport_fee_type: ss.transport_fee_type, night_rate_included: ss.night_rate_included }))
-  }) as { id: string; name: string; hourly_rate: number; transport_fee: number; transport_fee_type: string; night_rate_included: boolean }[]
+  }) as { id: string; name: string; employment_insurance_rate: number; hourly_rate: number; transport_fee: number; transport_fee_type: string; night_rate_included: boolean }[]
 
   const selectedShop = shops.find(s => s.id === shopIdParam) ?? shops[0]
 
@@ -111,6 +111,12 @@ export default async function StaffPayrollPage({
       }
     }
   }
+
+  // 控除（雇用保険料）と差引支給額
+  const monthlyGross = (payroll?.grand_total ?? 0) + customTotal
+  const eiRate = selectedShop?.employment_insurance_rate ?? 0.006
+  const employmentIns = employmentInsurance(monthlyGross, eiRate)
+  const netTotal = monthlyGross - employmentIns
 
   const prevYm = new Date(year, month - 2, 1)
   const nextYm = new Date(year, month, 1)
@@ -194,6 +200,18 @@ export default async function StaffPayrollPage({
                 <span>支給合計</span>
                 <span>¥{(payroll.grand_total + customTotal).toLocaleString()}</span>
               </div>
+              {employmentIns > 0 && (
+                <>
+                  <div className="flex justify-between text-gray-500">
+                    <span>雇用保険料（控除 {(eiRate * 100).toFixed(2)}%）</span>
+                    <span>−¥{employmentIns.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-gray-900 border-t border-gray-100 pt-2 mt-1">
+                    <span>差引支給額</span>
+                    <span>¥{netTotal.toLocaleString()}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

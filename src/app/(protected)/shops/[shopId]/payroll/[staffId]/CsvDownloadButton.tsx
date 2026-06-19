@@ -2,7 +2,7 @@
 import type { MonthlyPayroll, CustomLine } from '@/lib/payroll'
 
 export function CsvDownloadButton({
-  payroll, staffName, ym, customLines = [], customTotal = 0, grandTotal,
+  payroll, staffName, ym, customLines = [], customTotal = 0, grandTotal, employmentIns = 0, netTotal,
 }: {
   payroll: MonthlyPayroll
   staffName: string
@@ -10,6 +10,8 @@ export function CsvDownloadButton({
   customLines?: CustomLine[]
   customTotal?: number
   grandTotal?: number
+  employmentIns?: number
+  netTotal?: number
 }) {
   function download() {
     const total = grandTotal ?? payroll.grand_total + customTotal
@@ -35,6 +37,10 @@ export function CsvDownloadButton({
 
     rows.push([])
     rows.push(['支給合計', '', '', '', '', total])
+    if (employmentIns > 0) {
+      rows.push(['雇用保険料(控除)', '', '', '', '', -employmentIns])
+      rows.push(['差引支給額', '', '', '', '', netTotal ?? total - employmentIns])
+    }
 
     const csv = rows.map(r => r.join(',')).join('\n')
     const bom = '﻿'

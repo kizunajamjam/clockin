@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { calcMonthlyPayroll, calcCustomLines, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
+import { calcMonthlyPayroll, calcCustomLines, employmentInsurance, formatMinutes, type CustomItem, type CustomRecord } from '@/lib/payroll'
 import { CsvDownloadButton } from './CsvDownloadButton'
 import { CustomRecordsForm } from './CustomRecordsForm'
 
@@ -21,7 +21,7 @@ export default async function StaffPayrollPage({
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: shop } = await admin.from('shops').select('id, name, organization_id').eq('id', shopId).single()
+  const { data: shop } = await admin.from('shops').select('id, name, organization_id, employment_insurance_rate').eq('id', shopId).single()
   if (!shop) notFound()
   const { data: org } = await admin.from('organizations').select('id').eq('id', shop.organization_id).eq('owner_user_id', user.id).single()
   if (!org) notFound()
@@ -61,6 +61,11 @@ export default async function StaffPayrollPage({
   const { lines: customLines, total: customTotal } = calcCustomLines(customItems, (customRecData ?? []) as CustomRecord[])
   const grandTotal = payroll.grand_total + customTotal
 
+  // 控除（雇用保険料・労働者負担）と差引支給額
+  const eiRate = (shop.employment_insurance_rate as number) ?? 0.006
+  const employmentIns = employmentInsurance(grandTotal, eiRate)
+  const netTotal = grandTotal - employmentIns
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
@@ -93,6 +98,18 @@ export default async function StaffPayrollPage({
               <p className="font-medium">¥{customTotal.toLocaleString()}</p>
             </div>
           </div>
+          {employmentIns > 0 && (
+            <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">
+              <div className="flex justify-between text-gray-500">
+                <span>雇用保険料（控除 {(eiRate * 100).toFixed(2)}%）</span>
+                <span>−¥{employmentIns.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between font-bold text-gray-900">
+                <span>差引支給額</span>
+                <span>¥{netTotal.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
           <div className="text-xs text-gray-400 text-center border-t border-gray-100 pt-3">
             勤務時間合計: {formatMinutes(payroll.total_work_minutes)} / 出勤日数: {payroll.work_days}日
           </div>
@@ -112,7 +129,7 @@ export default async function StaffPayrollPage({
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-medium">日別明細</h2>
-            <CsvDownloadButton payroll={payroll} staffName={staffRecord.name} ym={targetYm} customLines={customLines} customTotal={customTotal} grandTotal={grandTotal} />
+            <CsvDownloadButton payroll={payroll} staffName={staffRecord.name} ym={targetYm} customLines={customLines} customTotal={customTotal} grandTotal={grandTotal} employmentIns={employmentIns} netTotal={netTotal} />
           </div>
           {payroll.days.length === 0 ? (
             <div className="py-8 text-center text-gray-400 text-sm">勤務記録がありません</div>

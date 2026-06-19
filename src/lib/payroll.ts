@@ -130,6 +130,13 @@ export function formatMinutes(mins: number): string {
   return `${Math.floor(mins / 60)}h${(mins % 60).toString().padStart(2, '0')}m`
 }
 
+// 雇用保険料（労働者負担分）= 賃金総額 × 料率。円未満切り捨て。
+// rate は小数（例: 0.006 = 0.6%）。賃金総額は交通費・カスタム項目を含む支給総額。
+export function employmentInsurance(grossTotal: number, rate: number): number {
+  if (!rate || rate <= 0) return 0
+  return Math.floor(grossTotal * rate)
+}
+
 // ── カスタム給与項目 ─────────────────────────────────────────
 export type CustomItemType = 'count_unit' | 'fixed' | 'percentage' | 'expense' | 'time_unit'
 
