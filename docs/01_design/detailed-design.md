@@ -52,6 +52,12 @@ public/sw.js      Service Worker（push / notificationclick）
 スタッフ系（punch/punch shifts/push）・オーナー系（owner shifts）アクションは全て本ヘルパ経由。
 新規 service_role アクションも必ずこのヘルパで認可すること。
 
+**書き込みスコープ必須ルール（重要）**: 所有者検証を通した後でも、**更新/削除の対象行は
+`id` 単独で指定してはならない**。必ず検証済みの `shop_id` / `organization_id` を併記して
+テナント境界に閉じること（例: `.eq('id', x).eq('shop_id', verifiedShopId)`）。
+これを怠ると別テナントの行を改ざんできる（第2回監査の R-1/R-3/R-4 が実例）。
+参照: [review §5](../04_review/review-2026-06-19.md)。
+
 ### 1.3 日付・時刻の取り扱い（JST固定）
 - 「今日」: `new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })` → `YYYY-MM-DD`。
 - 表示時刻: `toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', ... })`。
