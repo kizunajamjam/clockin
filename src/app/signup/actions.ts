@@ -29,7 +29,11 @@ export async function signUp(prevState: State, formData: FormData): Promise<Stat
     owner_user_id: data.user.id,
   })
 
-  if (orgError) return { error: '組織の作成に失敗しました: ' + orgError.message }
+  if (orgError) {
+    // 組織作成に失敗したら、孤児となるauthユーザーを掃除する
+    await admin.auth.admin.deleteUser(data.user.id)
+    return { error: '組織の作成に失敗しました: ' + orgError.message }
+  }
 
   redirect('/dashboard')
 }

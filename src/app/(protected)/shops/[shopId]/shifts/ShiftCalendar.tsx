@@ -39,30 +39,26 @@ function dowIndex(d: Date, startDay: WeekStart): number {
 }
 
 // 1シフトの予定人件費を計算（深夜割増考慮）
+// payroll.ts と同じ規約: night_rate_included=true は割増込み賃金なので加算しない
 function calcShiftCost(shift: Shift, staff: Staff): number {
   const start = new Date(shift.starts_at)
   const end = new Date(shift.ends_at)
-  const totalMins = (end.getTime() - start.getTime()) / 60000
+  const totalMins = Math.floor((end.getTime() - start.getTime()) / 60000)
   if (totalMins <= 0) return 0
 
-  if (!staff.night_rate_included) {
+  // 割増込み賃金なら一律時給
+  if (staff.night_rate_included) {
     return Math.round((totalMins / 60) * staff.hourly_rate)
   }
 
-  // 深夜時間帯（22:00〜翌5:00）は1.25倍
-  let normalMins = 0, nightMins = 0
-  const cursor = new Date(start)
-  const stepMins = 15
-  while (cursor < end) {
-    const h = cursor.getHours()
-    const isNight = h >= 22 || h < 5
-    isNight ? nightMins += stepMins : normalMins += stepMins
-    cursor.setMinutes(cursor.getMinutes() + stepMins)
+  // 深夜時間帯（22:00〜翌5:00）を1分刻みで判定し1.25倍
+  let nightMins = 0
+  for (let i = 0; i < totalMins; i++) {
+    const h = new Date(start.getTime() + i * 60000).getHours()
+    if (h >= 22 || h < 5) nightMins++
   }
-  // clamp to actual duration
-  const totalActual = normalMins + nightMins
-  const ratio = totalMins / totalActual
-  return Math.round(((normalMins * ratio) / 60 * staff.hourly_rate) + ((nightMins * ratio) / 60 * staff.hourly_rate * 1.25))
+  const normalMins = totalMins - nightMins
+  return Math.round((normalMins / 60 * staff.hourly_rate) + (nightMins / 60 * staff.hourly_rate * 1.25))
 }
 
 function fmtCost(yen: number): string {
