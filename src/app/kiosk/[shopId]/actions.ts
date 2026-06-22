@@ -167,8 +167,8 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
 }
 
 // ── ドリンクバックカウント ──────────────────────────────────────
-type DrinkPinResult =
-  | { success: true; staffName: string; counts: Record<string, number> }
+type DrinkOpenResult =
+  | { success: true; counts: Record<string, number> }
   | { success: false; error: string }
 
 function todayJst(): string {
@@ -187,18 +187,12 @@ async function getDrinkCounts(admin: ReturnType<typeof createAdminClient>, shopI
   return counts
 }
 
-// PIN認証してドリンクバックカウント画面を開く（本日のジャンル別カウントを返す）
-export async function verifyDrinkPin(formData: FormData): Promise<DrinkPinResult> {
-  const staffId = formData.get('staff_id') as string
-  const shopId = formData.get('shop_id') as string
-  const pin = formData.get('pin') as string
-
-  const verified = await verifyStaffPin(staffId, shopId, pin)
-  if (!verified.ok) return { success: false, error: verified.error }
-
+// ドリンクバックカウント画面を開く（本日のジャンル別カウントを返す。PIN不要）
+export async function openDrinkCounter(staffId: string, shopId: string): Promise<DrinkOpenResult> {
+  if (!staffId || !shopId) return { success: false, error: '入力が不正です' }
   const admin = createAdminClient()
   const counts = await getDrinkCounts(admin, shopId, staffId, todayJst())
-  return { success: true, staffName: verified.staffName, counts }
+  return { success: true, counts }
 }
 
 type DrinkCountResult = { success: true; itemId: string; count: number } | { success: false; error: string }

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useTransition, useEffect } from 'react'
-import { punchTablet, getAttendanceStatus, verifyDrinkPin, incrementDrinkCount, decrementDrinkCount } from './actions'
+import { punchTablet, getAttendanceStatus, openDrinkCounter, incrementDrinkCount, decrementDrinkCount } from './actions'
 
 type Staff = { id: string; name: string }
 type DrinkItem = { id: string; name: string }
@@ -49,14 +49,25 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
     setPin('')
     setError('')
     setPunchType(null)
-    setScreen('pin')
 
-    if (mode === 'punch') {
+    if (mode === 'drink') {
       startTransition(async () => {
-        const status = await getAttendanceStatus(staff.id, shopId)
-        setPunchType(status)
+        const res = await openDrinkCounter(staff.id, shopId)
+        if (res.success) {
+          setDrinkCounts(res.counts)
+          setScreen('drinkCounter')
+        } else {
+          setError(res.error)
+        }
       })
+      return
     }
+
+    setScreen('pin')
+    startTransition(async () => {
+      const status = await getAttendanceStatus(staff.id, shopId)
+      setPunchType(status)
+    })
   }
 
   function appendPin(digit: string) {
@@ -70,20 +81,6 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
     fd.set('staff_id', selectedStaff.id)
     fd.set('shop_id', shopId)
     fd.set('pin', pin)
-
-    if (mode === 'drink') {
-      startTransition(async () => {
-        const res = await verifyDrinkPin(fd)
-        if (res.success) {
-          setDrinkCounts(res.counts)
-          setScreen('drinkCounter')
-        } else {
-          setError(res.error)
-          setPin('')
-        }
-      })
-      return
-    }
 
     startTransition(async () => {
       const res = await punchTablet(fd)
@@ -175,8 +172,7 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
         <p className="text-4xl font-mono tabular-nums text-gray-200 mb-1">{time}</p>
 
         {/* 打刻種別バッジ */}
-        {mode === 'punch' && <p className={`text-lg font-bold mb-4 ${punchColor}`}>{punchLabel}</p>}
-        {mode === 'drink' && <p className="text-lg font-bold mb-4 text-amber-400">ドリンクバックカウント</p>}
+        <p className={`text-lg font-bold mb-4 ${punchColor}`}>{punchLabel}</p>
 
         <p className="text-gray-400 text-sm mb-1">PIN入力</p>
         <h2 className="text-2xl font-bold mb-6">{selectedStaff?.name}</h2>
@@ -217,7 +213,7 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
           disabled={pin.length < 4 || pin.length > 6 || isPending}
           className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl disabled:opacity-40 hover:bg-gray-100 transition-colors"
         >
-          {isPending ? '確認中...' : mode === 'drink' ? '確認する' : punchType === 'in' ? '出勤する' : '退勤する'}
+          {isPending ? '確認中...' : punchType === 'in' ? '出勤する' : '退勤する'}
         </button>
 
         <button onClick={() => { setScreen('list'); setError(''); setPin(''); setPunchType(null) }}
