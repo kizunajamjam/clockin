@@ -3,6 +3,7 @@ import { useState, useTransition, useEffect } from 'react'
 import { punchTablet, getAttendanceStatus, verifyDrinkPin, incrementDrinkCount, decrementDrinkCount } from './actions'
 
 type Staff = { id: string; name: string }
+type DrinkItem = { id: string; name: string }
 type Mode = 'punch' | 'drink'
 type Screen = 'list' | 'pin' | 'result' | 'drinkCounter'
 type PunchType = 'in' | 'out' | null
@@ -18,10 +19,11 @@ function useClock() {
   return time
 }
 
-export function KioskClient({ shopId, shopName, staffList }: {
+export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
   shopId: string
   shopName: string
   staffList: Staff[]
+  drinkItems: DrinkItem[]
 }) {
   const [mode, setMode] = useState<Mode>('punch')
   const [screen, setScreen] = useState<Screen>('list')
@@ -29,7 +31,7 @@ export function KioskClient({ shopId, shopName, staffList }: {
   const [pin, setPin] = useState('')
   const [punchType, setPunchType] = useState<PunchType>(null)
   const [result, setResult] = useState<{ type: 'in' | 'out'; name: string } | null>(null)
-  const [drinkCount, setDrinkCount] = useState(0)
+  const [drinkCounts, setDrinkCounts] = useState<Record<string, number>>({})
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const time = useClock()
@@ -73,7 +75,7 @@ export function KioskClient({ shopId, shopName, staffList }: {
       startTransition(async () => {
         const res = await verifyDrinkPin(fd)
         if (res.success) {
-          setDrinkCount(res.count)
+          setDrinkCounts(res.counts)
           setScreen('drinkCounter')
         } else {
           setError(res.error)
@@ -102,21 +104,22 @@ export function KioskClient({ shopId, shopName, staffList }: {
     })
   }
 
-  function adjustDrink(delta: number) {
+  function adjustDrink(itemId: string, delta: number) {
     if (!selectedStaff) return
     const fd = new FormData()
     fd.set('staff_id', selectedStaff.id)
     fd.set('shop_id', shopId)
+    fd.set('item_id', itemId)
     startTransition(async () => {
       const res = delta > 0 ? await incrementDrinkCount(fd) : await decrementDrinkCount(fd)
-      if (res.success) setDrinkCount(res.count)
+      if (res.success) setDrinkCounts(prev => ({ ...prev, [res.itemId]: res.count }))
     })
   }
 
   function finishDrinkCounter() {
     setScreen('list')
     setSelectedStaff(null)
-    setDrinkCount(0)
+    setDrinkCounts({})
   }
 
   // スタッフ一覧
@@ -232,18 +235,30 @@ export function KioskClient({ shopId, shopName, staffList }: {
         <p className="text-gray-400 text-sm mb-1">ドリンクバック・本日のカウント</p>
         <h2 className="text-2xl font-bold mb-8">{selectedStaff?.name}</h2>
 
-        <p className="text-7xl font-mono font-bold tabular-nums mb-8">{drinkCount}</p>
-
-        <div className="flex gap-4 mb-8">
-          <button onClick={() => adjustDrink(-1)} disabled={isPending || drinkCount === 0}
-            className="w-20 h-20 rounded-full bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-3xl font-bold disabled:opacity-40 transition-colors">
-            −1
-          </button>
-          <button onClick={() => adjustDrink(1)} disabled={isPending}
-            className="w-20 h-20 rounded-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-3xl font-bold text-gray-900 disabled:opacity-40 transition-colors">
-            +1
-          </button>
-        </div>
+        {drinkItems.length === 0 ? (
+          <p className="text-gray-400 text-sm mb-8">ジャンルが登録されていません。オーナーに設定を依頼してください</p>
+        ) : (
+          <div className="w-full max-w-xs space-y-4 mb-8">
+            {drinkItems.map(item => (
+              <div key={item.id} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm text-gray-300">{item.name}</p>
+                  <p className="text-3xl font-mono font-bold tabular-nums">{drinkCounts[item.id] ?? 0}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => adjustDrink(item.id, -1)} disabled={isPending || (drinkCounts[item.id] ?? 0) === 0}
+                    className="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-xl font-bold disabled:opacity-40 transition-colors">
+                    −1
+                  </button>
+                  <button onClick={() => adjustDrink(item.id, 1)} disabled={isPending}
+                    className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-xl font-bold text-gray-900 disabled:opacity-40 transition-colors">
+                    +1
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <button onClick={finishDrinkCounter}
           className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl hover:bg-gray-100 transition-colors">

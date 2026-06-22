@@ -110,6 +110,10 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
               target="_blank">
               /kiosk/{shopId}
             </Link>
+            <Link href={`/shops/${shopId}/drink-items`}
+              className="block text-xs text-gray-500 hover:text-gray-900">
+              ドリンクバック・ジャンルを管理 →
+            </Link>
           </div>
         )}
 

@@ -38,5 +38,11 @@ export default async function KioskPage({ params }: { params: Promise<{ shopId: 
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
 
-  return <KioskClient shopId={shopId} shopName={shop.name} staffList={staffList} />
+  const { data: drinkItemsData } = await admin
+    .from('drink_back_items')
+    .select('id, name')
+    .eq('shop_id', shopId)
+    .order('sort_order')
+
+  return <KioskClient shopId={shopId} shopName={shop.name} staffList={staffList} drinkItems={drinkItemsData ?? []} />
 }

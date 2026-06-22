@@ -168,25 +168,26 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
 
 // ── ドリンクバックカウント ──────────────────────────────────────
 type DrinkPinResult =
-  | { success: true; staffName: string; count: number }
+  | { success: true; staffName: string; counts: Record<string, number> }
   | { success: false; error: string }
 
 function todayJst(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
 }
 
-async function getDrinkCount(admin: ReturnType<typeof createAdminClient>, shopId: string, staffId: string, date: string): Promise<number> {
+async function getDrinkCounts(admin: ReturnType<typeof createAdminClient>, shopId: string, staffId: string, date: string): Promise<Record<string, number>> {
   const { data } = await admin
     .from('drink_back_counts')
-    .select('count')
+    .select('item_id, count')
     .eq('shop_id', shopId)
     .eq('staff_id', staffId)
     .eq('date', date)
-    .single()
-  return data?.count ?? 0
+  const counts: Record<string, number> = {}
+  for (const row of data ?? []) counts[row.item_id] = row.count
+  return counts
 }
 
-// PIN認証してドリンクバックカウント画面を開く（本日のカウントを返す）
+// PIN認証してドリンクバックカウント画面を開く（本日のジャンル別カウントを返す）
 export async function verifyDrinkPin(formData: FormData): Promise<DrinkPinResult> {
   const staffId = formData.get('staff_id') as string
   const shopId = formData.get('shop_id') as string
@@ -196,32 +197,42 @@ export async function verifyDrinkPin(formData: FormData): Promise<DrinkPinResult
   if (!verified.ok) return { success: false, error: verified.error }
 
   const admin = createAdminClient()
-  const count = await getDrinkCount(admin, shopId, staffId, todayJst())
-  return { success: true, staffName: verified.staffName, count }
+  const counts = await getDrinkCounts(admin, shopId, staffId, todayJst())
+  return { success: true, staffName: verified.staffName, counts }
 }
 
-type DrinkCountResult = { success: true; count: number } | { success: false; error: string }
+type DrinkCountResult = { success: true; itemId: string; count: number } | { success: false; error: string }
 
-async function adjustDrinkCount(staffId: string, shopId: string, delta: number): Promise<DrinkCountResult> {
-  if (!staffId || !shopId) return { success: false, error: '入力が不正です' }
+async function adjustDrinkCount(staffId: string, shopId: string, itemId: string, delta: number): Promise<DrinkCountResult> {
+  if (!staffId || !shopId || !itemId) return { success: false, error: '入力が不正です' }
 
   const admin = createAdminClient()
   const date = todayJst()
-  const current = await getDrinkCount(admin, shopId, staffId, date)
-  const next = Math.max(0, current + delta)
+  const { data: existing } = await admin
+    .from('drink_back_counts')
+    .select('count')
+    .eq('shop_id', shopId)
+    .eq('staff_id', staffId)
+    .eq('date', date)
+    .eq('item_id', itemId)
+    .single()
+  const next = Math.max(0, (existing?.count ?? 0) + delta)
 
   const { error } = await admin
     .from('drink_back_counts')
-    .upsert({ shop_id: shopId, staff_id: staffId, date, count: next, updated_at: new Date().toISOString() }, { onConflict: 'shop_id,staff_id,date' })
+    .upsert(
+      { shop_id: shopId, staff_id: staffId, date, item_id: itemId, count: next, updated_at: new Date().toISOString() },
+      { onConflict: 'shop_id,staff_id,date,item_id' }
+    )
   if (error) return { success: false, error: '更新に失敗しました' }
 
-  return { success: true, count: next }
+  return { success: true, itemId, count: next }
 }
 
 export async function incrementDrinkCount(formData: FormData): Promise<DrinkCountResult> {
-  return adjustDrinkCount(formData.get('staff_id') as string, formData.get('shop_id') as string, 1)
+  return adjustDrinkCount(formData.get('staff_id') as string, formData.get('shop_id') as string, formData.get('item_id') as string, 1)
 }
 
 export async function decrementDrinkCount(formData: FormData): Promise<DrinkCountResult> {
-  return adjustDrinkCount(formData.get('staff_id') as string, formData.get('shop_id') as string, -1)
+  return adjustDrinkCount(formData.get('staff_id') as string, formData.get('shop_id') as string, formData.get('item_id') as string, -1)
 }

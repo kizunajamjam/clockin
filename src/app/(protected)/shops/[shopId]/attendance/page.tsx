@@ -83,18 +83,30 @@ export default async function AttendancePage({
     return arr.map(st => ({ ...a, staffName: (st as { name: string }).name }))
   })
 
-  // ドリンクバックカウント（タブレット打刻のドリンクバック画面で記録）
+  // ドリンクバックカウント（タブレット打刻のドリンクバック画面で記録。ジャンル別）
+  const { data: drinkItems } = await admin
+    .from('drink_back_items')
+    .select('id, name')
+    .eq('shop_id', shopId)
+  const drinkItemName = new Map((drinkItems ?? []).map(i => [i.id, i.name]))
+
   let drinkQuery = admin
     .from('drink_back_counts')
-    .select('staff_id, date, count')
+    .select('staff_id, date, item_id, count')
     .eq('shop_id', shopId)
     .gte('date', from)
     .lte('date', to)
   if (staffFilter !== 'all') drinkQuery = drinkQuery.eq('staff_id', staffFilter)
   const { data: drinkCounts } = await drinkQuery
-  const drinkByDateStaff = new Map<string, number>()
+
+  // 日付×スタッフごとのジャンル別カウント（記録一覧のバッジ表示用）
+  const drinkByDateStaff = new Map<string, { itemName: string; count: number }[]>()
   for (const d of drinkCounts ?? []) {
-    drinkByDateStaff.set(`${d.date}__${d.staff_id}`, d.count)
+    if (d.count <= 0) continue
+    const key = `${d.date}__${d.staff_id}`
+    const list = drinkByDateStaff.get(key) ?? []
+    list.push({ itemName: drinkItemName.get(d.item_id) ?? '?', count: d.count })
+    drinkByDateStaff.set(key, list)
   }
 
   // 日付ごとにグループ化（記録一覧の表示用）
@@ -105,15 +117,15 @@ export default async function AttendancePage({
     else dateGroups.push({ date: row.date, rows: [row] })
   }
 
-  // 期間（日/週/月）×スタッフごとの勤務時間・ドリンクバック集計
-  type SummaryRow = { bucketKey: string; bucketLabel: string; staffId: string; staffName: string; minutes: number; drinks: number }
+  // 期間（日/週/月）×スタッフごとの勤務時間・ドリンクバック（ジャンル別）集計
+  type SummaryRow = { bucketKey: string; bucketLabel: string; staffId: string; staffName: string; minutes: number; drinks: Record<string, number> }
   const summaryMap = new Map<string, SummaryRow>()
   function summaryEntry(date: string, staffId: string, staffName: string): SummaryRow {
     const { key, label } = periodBucket(date, unit)
     const mapKey = `${key}__${staffId}`
     let entry = summaryMap.get(mapKey)
     if (!entry) {
-      entry = { bucketKey: key, bucketLabel: label, staffId, staffName, minutes: 0, drinks: 0 }
+      entry = { bucketKey: key, bucketLabel: label, staffId, staffName, minutes: 0, drinks: {} }
       summaryMap.set(mapKey, entry)
     }
     return entry
@@ -124,20 +136,28 @@ export default async function AttendancePage({
     summaryEntry(row.date, row.staff_id, row.staffName).minutes += mins
   }
   for (const d of drinkCounts ?? []) {
+    if (d.count <= 0) continue
     const staffName = staffOptions.find(s => s.id === d.staff_id)?.name ?? ''
     if (!staffName) continue
-    summaryEntry(d.date, d.staff_id, staffName).drinks += d.count
+    const itemName = drinkItemName.get(d.item_id) ?? '?'
+    const entry = summaryEntry(d.date, d.staff_id, staffName)
+    entry.drinks[itemName] = (entry.drinks[itemName] ?? 0) + d.count
   }
   const summaryRows = Array.from(summaryMap.values())
-    .filter(r => r.minutes > 0 || r.drinks > 0)
+    .filter(r => r.minutes > 0 || Object.keys(r.drinks).length > 0)
     .sort((a, b) => a.bucketKey === b.bucketKey ? a.staffName.localeCompare(b.staffName) : a.bucketKey.localeCompare(b.bucketKey))
   const grandMinutes = summaryRows.reduce((s, r) => s + r.minutes, 0)
-  const grandDrinks = summaryRows.reduce((s, r) => s + r.drinks, 0)
+  const drinkItemNames = Array.from(new Set((drinkItems ?? []).map(i => i.name)))
+  const grandDrinksByItem = new Map(drinkItemNames.map(name => [name, summaryRows.reduce((s, r) => s + (r.drinks[name] ?? 0), 0)]))
+
+  function fmtDrinks(drinks: Record<string, number>): string {
+    return Object.entries(drinks).filter(([, c]) => c > 0).map(([name, c]) => `${name}${c}`).join(' ')
+  }
 
   const csvRows: (string | number)[][] = [
-    ['期間', 'スタッフ', '勤務時間(分)', '勤務時間', 'ドリンクバック数'],
-    ...summaryRows.map(r => [r.bucketLabel, r.staffName, r.minutes, fmtHM(r.minutes), r.drinks]),
-    ['合計', '', grandMinutes, fmtHM(grandMinutes), grandDrinks],
+    ['期間', 'スタッフ', '勤務時間(分)', '勤務時間', ...drinkItemNames],
+    ...summaryRows.map(r => [r.bucketLabel, r.staffName, r.minutes, fmtHM(r.minutes), ...drinkItemNames.map(name => r.drinks[name] ?? 0)]),
+    ['合計', '', grandMinutes, fmtHM(grandMinutes), ...drinkItemNames.map(name => grandDrinksByItem.get(name) ?? 0)],
   ]
 
   return (
@@ -200,7 +220,7 @@ export default async function AttendancePage({
                   <span className="text-gray-600">{r.bucketLabel} ・ {r.staffName}</span>
                   <span className="flex items-center gap-3">
                     <span className="font-medium">{fmtHM(r.minutes)}</span>
-                    {r.drinks > 0 && <span className="text-amber-600">🍹{r.drinks}</span>}
+                    {fmtDrinks(r.drinks) && <span className="text-amber-600 text-xs">🍹{fmtDrinks(r.drinks)}</span>}
                   </span>
                 </li>
               ))}
@@ -209,7 +229,11 @@ export default async function AttendancePage({
               <span className="text-sm text-gray-500">合計</span>
               <span className="flex items-center gap-3">
                 <span className="font-bold">{fmtHM(grandMinutes)}</span>
-                {grandDrinks > 0 && <span className="text-amber-600 font-bold">🍹{grandDrinks}</span>}
+                {drinkItemNames.map(name => grandDrinksByItem.get(name) ?? 0).some(c => c > 0) && (
+                  <span className="text-amber-600 font-bold text-xs">
+                    🍹{drinkItemNames.filter(name => (grandDrinksByItem.get(name) ?? 0) > 0).map(name => `${name}${grandDrinksByItem.get(name)}`).join(' ')}
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -231,8 +255,10 @@ export default async function AttendancePage({
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{row.staffName}</span>
                         <div className="flex items-center gap-2">
-                          {(drinkByDateStaff.get(`${row.date}__${row.staff_id}`) ?? 0) > 0 && (
-                            <span className="text-xs text-amber-600">🍹{drinkByDateStaff.get(`${row.date}__${row.staff_id}`)}</span>
+                          {(drinkByDateStaff.get(`${row.date}__${row.staff_id}`) ?? []).length > 0 && (
+                            <span className="text-xs text-amber-600">
+                              🍹{(drinkByDateStaff.get(`${row.date}__${row.staff_id}`) ?? []).map(d => `${d.itemName}${d.count}`).join(' ')}
+                            </span>
                           )}
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             row.punch_mode === 'tablet' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
