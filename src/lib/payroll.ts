@@ -130,6 +130,24 @@ export function formatMinutes(mins: number): string {
   return `${Math.floor(mins / 60)}h${(mins % 60).toString().padStart(2, '0')}m`
 }
 
+// ── 期間集計（日/週/月） ─────────────────────────────────────
+export type PeriodUnit = 'day' | 'week' | 'month'
+
+// dateStr (YYYY-MM-DD) が属する集計バケットのキーと表示ラベルを返す
+// week は月曜始まりで、その週の月曜日の日付をキーにする
+export function periodBucket(dateStr: string, unit: PeriodUnit): { key: string; label: string } {
+  if (unit === 'day') return { key: dateStr, label: dateStr }
+  if (unit === 'month') {
+    const ym = dateStr.slice(0, 7)
+    return { key: ym, label: `${ym.slice(0, 4)}年${ym.slice(5, 7)}月` }
+  }
+  const d = new Date(`${dateStr}T00:00:00`)
+  const offset = (d.getDay() + 6) % 7
+  d.setDate(d.getDate() - offset)
+  const monday = d.toLocaleDateString('sv-SE')
+  return { key: monday, label: `${monday}の週` }
+}
+
 // 雇用保険料（労働者負担分）= 賃金総額 × 料率。円未満切り捨て。
 // rate は小数（例: 0.006 = 0.6%）。賃金総額は交通費・カスタム項目を含む支給総額。
 export function employmentInsurance(grossTotal: number, rate: number): number {

@@ -88,11 +88,10 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
         </div>
 
         {/* クイックリンク */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {[
             { label: '勤怠記録', href: `/shops/${shopId}/attendance` },
-            { label: 'シフト', href: `/shops/${shopId}/shifts` },
-            { label: '給与計算', href: `/shops/${shopId}/payroll` },
+            { label: '給与計算', href: `/shops/${shopId}/wages` },
           ].map(({ label, href }) => (
             <Link key={href} href={href}
               className="bg-white rounded-xl border border-gray-200 px-3 py-4 text-center text-sm font-medium hover:border-gray-400 transition-colors">

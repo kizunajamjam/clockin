@@ -9,8 +9,6 @@ export default function PunchLayout({ children }: { children: React.ReactNode })
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 flex h-16 z-40">
         {[
           { href: '/punch', label: '打刻', icon: '⏱' },
-          { href: '/punch/shifts', label: 'シフト', icon: '📅' },
-          { href: '/punch/payroll', label: '給与', icon: '💴' },
           { href: '/profile', label: '設定', icon: '👤' },
         ].map(({ href, label, icon }) => (
           <Link key={href} href={href}
