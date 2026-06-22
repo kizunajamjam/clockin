@@ -81,12 +81,8 @@ export function StaffEditForm({
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">年収アラート金額（円・任意）</label>
-        <input type="number" name="income_alert_amount" min={0} defaultValue={dv.incomeAlertAmount ?? ''}
-          placeholder="例: 1030000"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-      </div>
+      {/* 年収アラートはMVPでは非表示。既存値を維持して送信 */}
+      <input type="hidden" name="income_alert_amount" value={dv.incomeAlertAmount ?? ''} />
 
       <label className="flex items-center gap-2 text-sm">
         <input type="hidden" name="is_active" value="false" />

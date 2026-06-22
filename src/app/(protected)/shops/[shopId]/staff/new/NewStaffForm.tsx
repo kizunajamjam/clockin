@@ -82,17 +82,6 @@ export function NewStaffForm({
         </div>
       )}
 
-      {/* 年収アラート */}
-      <div className="space-y-4 border-t border-gray-100 pt-4">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">年収アラート（任意）</h2>
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-gray-700">アラート閾値（円）</label>
-          <input name="income_alert_amount" type="number" min={0} placeholder="例：1030000"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-          <p className="text-xs text-gray-400">掛け持ちを考慮した任意の金額を設定できます</p>
-        </div>
-      </div>
-
       <button type="submit" disabled={isPending}
         className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors">
         {isPending ? '追加中...' : 'スタッフを追加'}

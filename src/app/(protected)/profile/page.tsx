@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ProfileForm } from './ProfileForm'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -12,7 +11,7 @@ export default async function ProfilePage() {
   const admin = createAdminClient()
   const { data: staffRecord } = await admin
     .from('staff')
-    .select('name, email, income_alert_amount')
+    .select('name, email')
     .eq('user_id', user.id)
     .single()
 
@@ -30,7 +29,6 @@ export default async function ProfilePage() {
               <p className="font-medium text-lg">{staffRecord.name}</p>
               <p className="text-gray-500">{staffRecord.email ?? user.email}</p>
             </div>
-            <ProfileForm incomeAlertAmount={staffRecord.income_alert_amount ?? undefined} />
           </>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-sm text-gray-500">
