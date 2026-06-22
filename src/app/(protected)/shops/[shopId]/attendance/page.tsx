@@ -55,16 +55,6 @@ export default async function AttendancePage({
   const staffFilter = staffParam ?? 'all'
   const unit: PeriodUnit = unitParam === 'week' || unitParam === 'month' ? unitParam : 'day'
 
-  const { data: shopStaff } = await admin
-    .from('shop_staff')
-    .select('staff_id, staff(id, name)')
-    .eq('shop_id', shopId)
-
-  const staffOptions = (shopStaff ?? []).flatMap(ss => {
-    const arr = Array.isArray(ss.staff) ? ss.staff : [ss.staff]
-    return arr.filter(Boolean) as { id: string; name: string }[]
-  })
-
   let query = admin
     .from('attendances')
     .select('id, staff_id, date, clocked_in_at, clocked_out_at, break_minutes, punch_mode, note, staff(id, name)')
@@ -74,7 +64,27 @@ export default async function AttendancePage({
     .order('date', { ascending: false })
     .order('clocked_in_at', { ascending: true })
   if (staffFilter !== 'all') query = query.eq('staff_id', staffFilter)
-  const { data: attendances } = await query
+
+  let drinkQuery = admin
+    .from('drink_back_counts')
+    .select('staff_id, date, item_id, count')
+    .eq('shop_id', shopId)
+    .gte('date', from)
+    .lte('date', to)
+  if (staffFilter !== 'all') drinkQuery = drinkQuery.eq('staff_id', staffFilter)
+
+  // 互いに独立な4つの問い合わせを並列実行（応答速度のため）
+  const [{ data: shopStaff }, { data: attendances }, { data: drinkItems }, { data: drinkCounts }] = await Promise.all([
+    admin.from('shop_staff').select('staff_id, staff(id, name)').eq('shop_id', shopId),
+    query,
+    admin.from('drink_back_items').select('id, name').eq('shop_id', shopId),
+    drinkQuery,
+  ])
+
+  const staffOptions = (shopStaff ?? []).flatMap(ss => {
+    const arr = Array.isArray(ss.staff) ? ss.staff : [ss.staff]
+    return arr.filter(Boolean) as { id: string; name: string }[]
+  })
 
   const rows = (attendances ?? []).flatMap(a => {
     const s = a.staff
@@ -84,20 +94,7 @@ export default async function AttendancePage({
   })
 
   // ドリンクバックカウント（タブレット打刻のドリンクバック画面で記録。ジャンル別）
-  const { data: drinkItems } = await admin
-    .from('drink_back_items')
-    .select('id, name')
-    .eq('shop_id', shopId)
   const drinkItemName = new Map((drinkItems ?? []).map(i => [i.id, i.name]))
-
-  let drinkQuery = admin
-    .from('drink_back_counts')
-    .select('staff_id, date, item_id, count')
-    .eq('shop_id', shopId)
-    .gte('date', from)
-    .lte('date', to)
-  if (staffFilter !== 'all') drinkQuery = drinkQuery.eq('staff_id', staffFilter)
-  const { data: drinkCounts } = await drinkQuery
 
   // 日付×スタッフごとのジャンル別カウント（記録一覧のバッジ表示用）
   const drinkByDateStaff = new Map<string, { itemName: string; count: number }[]>()

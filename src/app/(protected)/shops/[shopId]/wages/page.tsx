@@ -23,19 +23,28 @@ export default async function WagesPage({
   const { data: shop } = await admin.from('shops').select('id, name, organization_id').eq('id', shopId).single()
   if (!shop) notFound()
 
-  const { data: org } = await admin.from('organizations').select('id').eq('id', shop.organization_id).eq('owner_user_id', user.id).single()
-  if (!org) notFound()
-
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
   const from = fromParam ?? `${today.slice(0, 7)}-01`
   const to = toParam ?? today
   const staffFilter = staffParam ?? 'all'
   const unit: PeriodUnit = unitParam === 'day' || unitParam === 'week' ? unitParam : 'month'
 
-  const { data: shopStaff } = await admin
-    .from('shop_staff')
-    .select('staff_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, staff(id, name)')
+  let query = admin
+    .from('attendances')
+    .select('staff_id, date, clocked_in_at, clocked_out_at, break_minutes, staff(id, name)')
     .eq('shop_id', shopId)
+    .gte('date', from)
+    .lte('date', to)
+    .order('date')
+  if (staffFilter !== 'all') query = query.eq('staff_id', staffFilter)
+
+  // 認可チェック（org）・スタッフ設定・勤怠記録は互いに独立なため並列実行
+  const [{ data: org }, { data: shopStaff }, { data: attendances }] = await Promise.all([
+    admin.from('organizations').select('id').eq('id', shop.organization_id).eq('owner_user_id', user.id).single(),
+    admin.from('shop_staff').select('staff_id, hourly_rate, transport_fee, transport_fee_type, night_rate_included, staff(id, name)').eq('shop_id', shopId),
+    query,
+  ])
+  if (!org) notFound()
 
   const staffList = (shopStaff ?? []).flatMap(ss => {
     const arr = Array.isArray(ss.staff) ? ss.staff : [ss.staff]
@@ -53,16 +62,6 @@ export default async function WagesPage({
       night_rate_included: ss.night_rate_included,
     })
   }
-
-  let query = admin
-    .from('attendances')
-    .select('staff_id, date, clocked_in_at, clocked_out_at, break_minutes, staff(id, name)')
-    .eq('shop_id', shopId)
-    .gte('date', from)
-    .lte('date', to)
-    .order('date')
-  if (staffFilter !== 'all') query = query.eq('staff_id', staffFilter)
-  const { data: attendances } = await query
 
   const rows = (attendances ?? []).flatMap(a => {
     const s = a.staff

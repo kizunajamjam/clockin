@@ -52,26 +52,21 @@ async function verifyStaffPin(staffId: string, shopId: string, pin: string): Pro
   const logAttempt = (success: boolean, sid: string | null) =>
     admin.from('punch_attempts').insert({ shop_id: shopId, staff_id: sid, success, ip })
 
+  // IPスロットリング判定とスタッフ取得は互いに独立なため並列実行（応答速度のため）
+  const since = new Date(Date.now() - IP_WINDOW_MINUTES * 60000).toISOString()
+  const [ipCountResult, staffResult] = await Promise.all([
+    ip
+      ? admin.from('punch_attempts').select('id', { count: 'exact', head: true }).eq('ip', ip).eq('success', false).gte('created_at', since)
+      : Promise.resolve({ count: 0 }),
+    admin.from('staff').select('id, name, pin, pin_failed_count, pin_locked_until').eq('id', staffId).single(),
+  ])
+
   // IP単位スロットリング（同一IPからの失敗集中をブロック）
-  if (ip) {
-    const since = new Date(Date.now() - IP_WINDOW_MINUTES * 60000).toISOString()
-    const { count } = await admin
-      .from('punch_attempts')
-      .select('id', { count: 'exact', head: true })
-      .eq('ip', ip)
-      .eq('success', false)
-      .gte('created_at', since)
-    if ((count ?? 0) >= IP_MAX_FAILS) {
-      return { ok: false, error: '試行回数が多すぎます。しばらく待ってから再試行してください' }
-    }
+  if ((ipCountResult.count ?? 0) >= IP_MAX_FAILS) {
+    return { ok: false, error: '試行回数が多すぎます。しばらく待ってから再試行してください' }
   }
 
-  const { data: staff } = await admin
-    .from('staff')
-    .select('id, name, pin, pin_failed_count, pin_locked_until')
-    .eq('id', staffId)
-    .single()
-
+  const { data: staff } = staffResult
   if (!staff) { await logAttempt(false, null); return { ok: false, error: 'スタッフが見つかりません' } }
   if (!staff.pin) return { ok: false, error: 'PINが設定されていません' }
 
@@ -89,17 +84,17 @@ async function verifyStaffPin(staffId: string, shopId: string, pin: string): Pro
   const valid = await verifyPin(pin, staffId, staff.pin)
   if (!valid) {
     const failed = prevFailed + 1
-    await logAttempt(false, staffId)
-    if (failed >= MAX_PIN_ATTEMPTS) {
-      const newLock = new Date(nowDate.getTime() + PIN_LOCK_MINUTES * 60000).toISOString()
-      await admin.from('staff').update({ pin_failed_count: failed, pin_locked_until: newLock }).eq('id', staffId)
-      return { ok: false, error: `PINを${MAX_PIN_ATTEMPTS}回間違えました。約${PIN_LOCK_MINUTES}分間ロックします` }
-    }
-    await admin.from('staff').update({ pin_failed_count: failed, pin_locked_until: null }).eq('id', staffId)
-    return { ok: false, error: `PINが正しくありません（あと${MAX_PIN_ATTEMPTS - failed}回）` }
+    const locked = failed >= MAX_PIN_ATTEMPTS
+    const newLock = locked ? new Date(nowDate.getTime() + PIN_LOCK_MINUTES * 60000).toISOString() : null
+    // 監査ログとロック更新は独立なため並列実行
+    await Promise.all([
+      logAttempt(false, staffId),
+      admin.from('staff').update({ pin_failed_count: failed, pin_locked_until: newLock }).eq('id', staffId),
+    ])
+    return locked
+      ? { ok: false, error: `PINを${MAX_PIN_ATTEMPTS}回間違えました。約${PIN_LOCK_MINUTES}分間ロックします` }
+      : { ok: false, error: `PINが正しくありません（あと${MAX_PIN_ATTEMPTS - failed}回）` }
   }
-
-  await logAttempt(true, staffId)
 
   // 成功 → 失敗カウンタ/ロックをリセット。旧形式ハッシュなら現行パラメータへ昇格
   const reset: Record<string, unknown> = {}
@@ -110,9 +105,12 @@ async function verifyStaffPin(staffId: string, shopId: string, pin: string): Pro
   if (needsRehash(staff.pin)) {
     reset.pin = await hashPin(pin, staffId)
   }
-  if (Object.keys(reset).length > 0) {
-    await admin.from('staff').update(reset).eq('id', staffId)
-  }
+
+  // 監査ログとリセット更新は独立なため並列実行
+  await Promise.all([
+    logAttempt(true, staffId),
+    Object.keys(reset).length > 0 ? admin.from('staff').update(reset).eq('id', staffId) : Promise.resolve(),
+  ])
 
   return { ok: true, staffName: staff.name }
 }
@@ -126,23 +124,16 @@ export async function punchTablet(formData: FormData): Promise<PunchResult> {
   const shopId = formData.get('shop_id') as string
   const pin = formData.get('pin') as string
 
-  const verified = await verifyStaffPin(staffId, shopId, pin)
-  if (!verified.ok) return { success: false, error: verified.error }
-
   const admin = createAdminClient()
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
   const now = new Date().toISOString()
 
-  // 未退勤レコードを探す
-  const { data: openRecord } = await admin
-    .from('attendances')
-    .select('id')
-    .eq('shop_id', shopId)
-    .eq('staff_id', staffId)
-    .eq('date', today)
-    .is('clocked_out_at', null)
-    .limit(1)
-    .single()
+  // PIN検証と「未退勤レコードを探す」は互いに独立なため並列実行（検証失敗時の結果は捨てる）
+  const [verified, { data: openRecord }] = await Promise.all([
+    verifyStaffPin(staffId, shopId, pin),
+    admin.from('attendances').select('id').eq('shop_id', shopId).eq('staff_id', staffId).eq('date', today).is('clocked_out_at', null).limit(1).single(),
+  ])
+  if (!verified.ok) return { success: false, error: verified.error }
 
   if (openRecord) {
     // 退勤打刻
@@ -201,26 +192,17 @@ async function adjustDrinkCount(staffId: string, shopId: string, itemId: string,
   if (!staffId || !shopId || !itemId) return { success: false, error: '入力が不正です' }
 
   const admin = createAdminClient()
-  const date = todayJst()
-  const { data: existing } = await admin
-    .from('drink_back_counts')
-    .select('count')
-    .eq('shop_id', shopId)
-    .eq('staff_id', staffId)
-    .eq('date', date)
-    .eq('item_id', itemId)
-    .single()
-  const next = Math.max(0, (existing?.count ?? 0) + delta)
-
-  const { error } = await admin
-    .from('drink_back_counts')
-    .upsert(
-      { shop_id: shopId, staff_id: staffId, date, item_id: itemId, count: next, updated_at: new Date().toISOString() },
-      { onConflict: 'shop_id,staff_id,date,item_id' }
-    )
+  // DB側の関数で select→upsert を1往復にまとめている（タップ毎の応答速度のため）
+  const { data, error } = await admin.rpc('adjust_drink_back_count', {
+    p_shop_id: shopId,
+    p_staff_id: staffId,
+    p_date: todayJst(),
+    p_item_id: itemId,
+    p_delta: delta,
+  })
   if (error) return { success: false, error: '更新に失敗しました' }
 
-  return { success: true, itemId, count: next }
+  return { success: true, itemId, count: data as number }
 }
 
 export async function incrementDrinkCount(formData: FormData): Promise<DrinkCountResult> {

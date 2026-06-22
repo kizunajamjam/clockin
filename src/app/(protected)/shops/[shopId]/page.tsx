@@ -20,24 +20,17 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
     .single()
   if (!shop) notFound()
 
-  const { data: org } = await admin
-    .from('organizations')
-    .select('id')
-    .eq('id', shop.organization_id)
-    .eq('owner_user_id', user.id)
-    .single()
+  // 認可チェック（org）とスタッフ一覧は互いに独立なため並列実行（認可失敗時はstaffListを使わずnotFoundする）
+  const [{ data: org }, { data: shopStaff }] = await Promise.all([
+    admin.from('organizations').select('id').eq('id', shop.organization_id).eq('owner_user_id', user.id).single(),
+    admin.from('shop_staff').select('staff_id, staff(id, name, invite_token)').eq('shop_id', shopId).eq('is_active', true),
+  ])
   if (!org) notFound()
 
   const headersList = await headers()
   const host = headersList.get('host') ?? 'localhost:3000'
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
   const baseUrl = `${protocol}://${host}`
-
-  const { data: shopStaff } = await admin
-    .from('shop_staff')
-    .select('staff_id, staff(id, name, invite_token)')
-    .eq('shop_id', shopId)
-    .eq('is_active', true)
 
   const staffList = (shopStaff ?? []).flatMap(ss => {
     const s = ss.staff

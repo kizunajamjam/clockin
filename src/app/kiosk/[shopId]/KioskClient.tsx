@@ -107,9 +107,11 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
     fd.set('staff_id', selectedStaff.id)
     fd.set('shop_id', shopId)
     fd.set('item_id', itemId)
+    setError('')
     startTransition(async () => {
       const res = delta > 0 ? await incrementDrinkCount(fd) : await decrementDrinkCount(fd)
       if (res.success) setDrinkCounts(prev => ({ ...prev, [res.itemId]: res.count }))
+      else setError(res.error)
     })
   }
 
@@ -229,7 +231,9 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
         <p className="text-gray-400 text-sm mb-1">ドリンクバック・本日のカウント</p>
-        <h2 className="text-2xl font-bold mb-8">{selectedStaff?.name}</h2>
+        <h2 className="text-2xl font-bold mb-4">{selectedStaff?.name}</h2>
+
+        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
         {drinkItems.length === 0 ? (
           <p className="text-gray-400 text-sm mb-8">ジャンルが登録されていません。オーナーに設定を依頼してください</p>
