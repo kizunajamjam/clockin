@@ -310,6 +310,7 @@ function StaffShiftEditor({ shopId, staff, days, weekStart, rangeLabel, shifts, 
   const [endTime, setEndTime] = useState('17:00')
   const [breakMins, setBreakMins] = useState('60')
   const [note, setNote] = useState('')
+  const [bulkDow, setBulkDow] = useState<number>(weekStart === 'mon' ? 1 : 0)
   const [checkedDays, setCheckedDays] = useState<Set<string>>(new Set())
   const [saving, startSave] = useTransition()
   const [saveError, setSaveError] = useState('')
@@ -366,15 +367,18 @@ function StaffShiftEditor({ shopId, staff, days, weekStart, rangeLabel, shifts, 
     })
   }
 
-  function selectWeekday(dow: number) {
-    // dow は 0=日〜6=土 の実際の曜日番号
+  function addWeekday(dow: number) {
+    // dow は 0=日〜6=土 の実際の曜日番号。該当曜日を選択に追加する
     const targets = days.filter(d => d.getDay() === dow).map(toDateStr)
     setCheckedDays(prev => {
       const next = new Set(prev)
-      const allChecked = targets.every(d => next.has(d))
-      targets.forEach(d => allChecked ? next.delete(d) : next.add(d))
+      targets.forEach(d => next.add(d))
       return next
     })
+  }
+
+  function clearSelection() {
+    setCheckedDays(new Set())
   }
 
   function handleSave() {
@@ -460,73 +464,69 @@ function StaffShiftEditor({ shopId, staff, days, weekStart, rangeLabel, shifts, 
           </div>
         </div>
 
-        {/* 曜日一括チェック（週・2週・月すべてで利用可） */}
-        <div className="flex gap-1 flex-wrap">
-          <span className="text-xs text-gray-400 self-center mr-1">曜日一括：</span>
-          {getWeekdays(weekStart).map((w, i) => {
-            // i は列インデックス。実際の曜日番号(0=日)に変換
-            const actualDow = weekStart === 'mon' ? (i + 1) % 7 : i
-            return (
-              <button key={i} onClick={() => selectWeekday(actualDow)} type="button"
-                className="px-2 py-1 text-xs border border-gray-300 rounded-md hover:bg-gray-100">
-                {w}
-              </button>
-            )
-          })}
+        {/* 曜日プルダウン + 反映 */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">曜日でまとめて</label>
+          <select value={bulkDow} onChange={e => setBulkDow(Number(e.target.value))}
+            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">
+            {getWeekdays(weekStart).map((w, i) => {
+              const dow = weekStart === 'mon' ? (i + 1) % 7 : i
+              return <option key={i} value={dow}>{w}曜</option>
+            })}
+          </select>
+          <button onClick={() => addWeekday(bulkDow)} type="button"
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">反映</button>
+          {checkedDays.size > 0 && (
+            <button onClick={clearSelection} type="button" className="ml-auto text-xs text-gray-400 hover:text-gray-600">クリア</button>
+          )}
         </div>
 
-        {/* 日付選択リスト（縦並び） */}
-        <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-          {days.map(day => {
-            const dateStr = toDateStr(day)
-            const isChecked = checkedDays.has(dateStr)
-            const isToday = dateStr === today
-            const isSat = day.getDay() === 6, isSun = day.getDay() === 0
-            const colIdx = dowIndex(day, weekStart)
-            const weekdays = getWeekdays(weekStart)
-            const existing = shiftsForDay(dateStr)
-            return (
-              <button key={dateStr} onClick={() => toggleDay(dateStr)} type="button"
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 text-left transition-colors
-                  ${isChecked ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'}
-                  ${isToday ? 'ring-1 ring-blue-400' : ''}`}>
-                {/* チェックボックス風アイコン */}
-                <span className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 text-xs font-bold
-                  ${isChecked ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300'}`}>
-                  {isChecked ? '✓' : ''}
-                </span>
-                {/* 日付 */}
-                <span className={`text-sm font-medium w-24 shrink-0
-                  ${isChecked ? 'text-blue-700' : isSat ? 'text-blue-600' : isSun ? 'text-red-600' : 'text-gray-700'}`}>
-                  {weekdays[colIdx]} {fmtMD(day)}{isToday ? ' 今日' : ''}
-                </span>
-                {/* 既存シフト */}
-                <span className="flex gap-1 flex-wrap">
-                  {existing.map(s => (
-                    <span key={s.id} className="text-[10px] text-blue-600 bg-blue-100 rounded px-1.5 py-0.5">
-                      {fmtTime(s.starts_at)}〜{fmtTime(s.ends_at)}
-                    </span>
-                  ))}
-                  {requestsForDay(dateStr).map(r => (
-                    <span key={r.id} className={`text-[10px] rounded px-1.5 py-0.5 ${r.status === 'approved' ? 'bg-green-100 text-green-700' : r.status === 'rejected' ? 'bg-gray-100 text-gray-400' : 'bg-amber-100 text-amber-700'}`}>
-                      {r.status === 'approved' ? '✓' : r.status === 'rejected' ? '✕' : '?'} 希望{r.start_time ? ` ${r.start_time.slice(0,5)}〜` : ''}
-                    </span>
-                  ))}
-                </span>
-              </button>
-            )
-          })}
+        {/* カレンダー（タップで選択） */}
+        <div>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {getWeekdays(weekStart).map((w, i) => (
+              <div key={i} className="text-center text-[10px] text-gray-400">{w}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: dowIndex(days[0], weekStart) }).map((_, i) => <div key={`blank-${i}`} />)}
+            {days.map(day => {
+              const dateStr = toDateStr(day)
+              const isChecked = checkedDays.has(dateStr)
+              const isToday = dateStr === today
+              const isSat = day.getDay() === 6, isSun = day.getDay() === 0
+              const existing = shiftsForDay(dateStr)
+              const hasReq = requestsForDay(dateStr).length > 0
+              return (
+                <button key={dateStr} type="button" onClick={() => toggleDay(dateStr)}
+                  className={`relative aspect-square rounded-md border flex items-center justify-center text-sm transition-colors
+                    ${isChecked
+                      ? 'border-blue-500 bg-blue-500 text-white font-semibold'
+                      : `bg-white hover:border-gray-400 ${isToday ? 'border-blue-400 ring-1 ring-blue-300' : 'border-gray-200'}`}`}>
+                  <span className={isChecked ? '' : isSat ? 'text-blue-600' : isSun ? 'text-red-600' : 'text-gray-700'}>
+                    {day.getDate()}
+                  </span>
+                  <span className="absolute bottom-1 flex gap-0.5">
+                    {existing.length > 0 && <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? 'bg-white' : 'bg-blue-500'}`} />}
+                    {hasReq && <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? 'bg-amber-200' : 'bg-amber-400'}`} />}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5"><span className="text-blue-500">●</span> 登録済み　<span className="text-amber-500">●</span> 希望あり</p>
         </div>
 
-        {checkedDays.size > 0 && (
-          <p className="text-xs text-blue-600">{checkedDays.size}日選択中</p>
-        )}
         {saveError && <p className="text-xs text-red-500">{saveError}</p>}
 
-        <button onClick={handleSave} disabled={saving || checkedDays.size === 0}
-          className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors">
-          {saving ? '保存中...' : `${checkedDays.size > 0 ? `${checkedDays.size}日分を` : ''}保存する`}
-        </button>
+        {/* 確定（右下） */}
+        <div className="flex items-center justify-end gap-3">
+          {checkedDays.size > 0 && <span className="text-xs text-blue-600 mr-auto">{checkedDays.size}日選択中</span>}
+          <button onClick={handleSave} disabled={saving || checkedDays.size === 0}
+            className="px-6 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors">
+            {saving ? '保存中...' : '確定'}
+          </button>
+        </div>
       </div>
 
       {/* 希望シフト一覧 */}
