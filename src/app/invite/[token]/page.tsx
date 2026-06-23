@@ -29,9 +29,6 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-sm w-full">
         <h1 className="font-bold text-lg mb-1">アカウント作成</h1>
-        <p className="text-sm text-gray-500 mb-5">
-          {staff.name} さんとしてアカウントを登録します
-        </p>
         <InviteForm token={token} staffName={staff.name} />
       </div>
     </div>

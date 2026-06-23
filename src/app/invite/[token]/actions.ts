@@ -14,15 +14,18 @@ export async function acceptInvite(prevState: State, formData: FormData): Promis
 
   const admin = createAdminClient()
 
-  // トークンでスタッフを検索
-  const { data: staffRecord } = await admin
+  // トークンを使用済みにする（同じリンクを複数端末で同時に開いても、行ロックにより
+  // この更新が成功するのは1リクエストのみ。先にここで「権利」を確保してから
+  // アカウント作成に進むことで、2つのログインアカウントが作られる事故を防ぐ
+  const { data: claimed } = await admin
     .from('staff')
-    .select('id, name, user_id')
+    .update({ invite_token: null })
     .eq('invite_token', token)
+    .is('user_id', null)
+    .select('id, name')
     .single()
 
-  if (!staffRecord) return { error: '招待リンクが無効または期限切れです' }
-  if (staffRecord.user_id) return { error: 'この招待リンクは既に使用されています' }
+  if (!claimed) return { error: '招待リンクが無効、または既に使用されています' }
 
   // Supabase Authアカウント作成
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
@@ -31,6 +34,8 @@ export async function acceptInvite(prevState: State, formData: FormData): Promis
     email_confirm: true,
   })
   if (authError) {
+    // 作成に失敗したら招待リンクを再利用できるよう戻す
+    await admin.from('staff').update({ invite_token: token }).eq('id', claimed.id)
     if (authError.message.includes('already registered')) {
       return { error: 'このメールアドレスは既に登録されています' }
     }
@@ -40,11 +45,12 @@ export async function acceptInvite(prevState: State, formData: FormData): Promis
   // staffレコードにuser_idを紐付け
   const { error: linkError } = await admin
     .from('staff')
-    .update({ user_id: authData.user.id, email, invite_token: null })
-    .eq('id', staffRecord.id)
+    .update({ user_id: authData.user.id, email })
+    .eq('id', claimed.id)
 
   if (linkError) {
     await admin.auth.admin.deleteUser(authData.user.id)
+    await admin.from('staff').update({ invite_token: token }).eq('id', claimed.id)
     return { error: 'アカウントの紐付けに失敗しました' }
   }
 

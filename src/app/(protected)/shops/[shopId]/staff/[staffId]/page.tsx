@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { StaffEditForm } from './StaffEditForm'
 
 export default async function StaffDetailPage({
@@ -37,6 +38,11 @@ export default async function StaffDetailPage({
     .single()
   if (!ss) notFound()
 
+  const headersList = await headers()
+  const host = headersList.get('host') ?? 'localhost:3000'
+  const protocol = host.startsWith('localhost') ? 'http' : 'https'
+  const baseUrl = `${protocol}://${host}`
+
   const punchModes = shop.punch_modes as string[]
 
   return (
@@ -52,7 +58,7 @@ export default async function StaffDetailPage({
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
             <p className="font-medium text-amber-800 mb-1">未招待</p>
             <p className="text-amber-700 text-xs break-all">
-              招待URL: {process.env.NEXT_PUBLIC_APP_URL}/invite/{staffRecord.invite_token}
+              招待URL: {baseUrl}/invite/{staffRecord.invite_token}
             </p>
           </div>
         )}
