@@ -81,17 +81,10 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
         </div>
 
         {/* クイックリンク */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: '勤怠記録', href: `/shops/${shopId}/attendance` },
-            { label: '給与計算', href: `/shops/${shopId}/wages` },
-          ].map(({ label, href }) => (
-            <Link key={href} href={href}
-              className="bg-white rounded-xl border border-gray-200 px-3 py-4 text-center text-sm font-medium hover:border-gray-400 transition-colors">
-              {label}
-            </Link>
-          ))}
-        </div>
+        <Link href={`/shops/${shopId}/attendance`}
+          className="block bg-white rounded-xl border border-gray-200 px-3 py-4 text-center text-sm font-medium hover:border-gray-400 transition-colors">
+          勤怠記録
+        </Link>
 
         {/* タブレット打刻リンク */}
         {punchModes.includes('tablet') && (
@@ -102,10 +95,6 @@ export default async function ShopPage({ params }: { params: Promise<{ shopId: s
               className="block text-sm text-blue-600 hover:underline break-all"
               target="_blank">
               /kiosk/{shopId}
-            </Link>
-            <Link href={`/shops/${shopId}/drink-items`}
-              className="block text-xs text-gray-500 hover:text-gray-900">
-              ドリンクバック・ジャンルを管理 →
             </Link>
           </div>
         )}

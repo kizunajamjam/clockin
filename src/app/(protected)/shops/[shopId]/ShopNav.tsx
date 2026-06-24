@@ -9,7 +9,6 @@ export function ShopNav({ shopId }: { shopId: string }) {
   const items: { href: string; label: string; icon: string; exact?: boolean }[] = [
     { href: base, label: '店舗', icon: '🏠', exact: true },
     { href: `${base}/attendance`, label: '勤怠', icon: '🕐' },
-    { href: `${base}/wages`, label: '給与', icon: '💰' },
     { href: `${base}/settings`, label: '設定', icon: '⚙️' },
   ]
 
@@ -19,7 +18,7 @@ export function ShopNav({ shopId }: { shopId: string }) {
   }
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 grid grid-cols-4 max-w-2xl mx-auto">
+    <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 grid grid-cols-3 max-w-2xl mx-auto">
       {items.map(it => {
         const active = isActive(it.href, it.exact)
         return (

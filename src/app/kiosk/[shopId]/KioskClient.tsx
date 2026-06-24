@@ -1,11 +1,9 @@
 'use client'
 import { useState, useTransition, useEffect } from 'react'
-import { punchTablet, getAttendanceStatus, openDrinkCounter, incrementDrinkCount, decrementDrinkCount } from './actions'
+import { punchTablet, getAttendanceStatus } from './actions'
 
 type Staff = { id: string; name: string }
-type DrinkItem = { id: string; name: string }
-type Mode = 'punch' | 'drink'
-type Screen = 'list' | 'pin' | 'result' | 'drinkCounter'
+type Screen = 'list' | 'pin' | 'result'
 type PunchType = 'in' | 'out' | null
 
 function useClock() {
@@ -19,50 +17,25 @@ function useClock() {
   return time
 }
 
-export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
+export function KioskClient({ shopId, shopName, staffList }: {
   shopId: string
   shopName: string
   staffList: Staff[]
-  drinkItems: DrinkItem[]
 }) {
-  const [mode, setMode] = useState<Mode>('punch')
   const [screen, setScreen] = useState<Screen>('list')
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
   const [pin, setPin] = useState('')
   const [punchType, setPunchType] = useState<PunchType>(null)
   const [result, setResult] = useState<{ type: 'in' | 'out'; name: string } | null>(null)
-  const [drinkCounts, setDrinkCounts] = useState<Record<string, number>>({})
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const time = useClock()
-
-  function changeMode(m: Mode) {
-    setMode(m)
-    setScreen('list')
-    setSelectedStaff(null)
-    setPin('')
-    setError('')
-  }
 
   function selectStaff(staff: Staff) {
     setSelectedStaff(staff)
     setPin('')
     setError('')
     setPunchType(null)
-
-    if (mode === 'drink') {
-      startTransition(async () => {
-        const res = await openDrinkCounter(staff.id, shopId)
-        if (res.success) {
-          setDrinkCounts(res.counts)
-          setScreen('drinkCounter')
-        } else {
-          setError(res.error)
-        }
-      })
-      return
-    }
-
     setScreen('pin')
     startTransition(async () => {
       const status = await getAttendanceStatus(staff.id, shopId)
@@ -101,47 +74,17 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
     })
   }
 
-  function adjustDrink(itemId: string, delta: number) {
-    if (!selectedStaff) return
-    const fd = new FormData()
-    fd.set('staff_id', selectedStaff.id)
-    fd.set('shop_id', shopId)
-    fd.set('item_id', itemId)
-    setError('')
-    startTransition(async () => {
-      const res = delta > 0 ? await incrementDrinkCount(fd) : await decrementDrinkCount(fd)
-      if (res.success) setDrinkCounts(prev => ({ ...prev, [res.itemId]: res.count }))
-      else setError(res.error)
-    })
-  }
-
-  function finishDrinkCounter() {
-    setScreen('list')
-    setSelectedStaff(null)
-    setDrinkCounts({})
-  }
-
   // スタッフ一覧
   if (screen === 'list') {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex flex-col">
         <header className="px-6 py-5 border-b border-gray-700 flex items-center justify-between">
           <div>
-            <p className="text-gray-400 text-sm">{mode === 'punch' ? '打刻' : 'ドリンクバックカウント'}</p>
+            <p className="text-gray-400 text-sm">打刻</p>
             <h1 className="text-xl font-bold">{shopName}</h1>
           </div>
           <p className="text-2xl font-mono tabular-nums text-gray-300">{time}</p>
         </header>
-        <div className="flex border-b border-gray-700">
-          {([['punch', '打刻'], ['drink', 'ドリンクバック']] as [Mode, string][]).map(([m, label]) => (
-            <button key={m} onClick={() => changeMode(m)}
-              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                mode === m ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
         <main className="flex-1 p-4">
           <p className="text-center text-gray-400 text-sm mb-4">名前をタップしてください</p>
           <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
@@ -221,48 +164,6 @@ export function KioskClient({ shopId, shopName, staffList, drinkItems }: {
         <button onClick={() => { setScreen('list'); setError(''); setPin(''); setPunchType(null) }}
           className="mt-4 text-gray-500 text-sm hover:text-gray-300">
           ← 戻る
-        </button>
-      </div>
-    )
-  }
-
-  // ドリンクバックカウンター
-  if (screen === 'drinkCounter') {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
-        <p className="text-gray-400 text-sm mb-1">ドリンクバック・本日のカウント</p>
-        <h2 className="text-2xl font-bold mb-4">{selectedStaff?.name}</h2>
-
-        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-
-        {drinkItems.length === 0 ? (
-          <p className="text-gray-400 text-sm mb-8">ジャンルが登録されていません。オーナーに設定を依頼してください</p>
-        ) : (
-          <div className="w-full max-w-xs space-y-4 mb-8">
-            {drinkItems.map(item => (
-              <div key={item.id} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
-                <div>
-                  <p className="text-sm text-gray-300">{item.name}</p>
-                  <p className="text-3xl font-mono font-bold tabular-nums">{drinkCounts[item.id] ?? 0}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => adjustDrink(item.id, -1)} disabled={isPending || (drinkCounts[item.id] ?? 0) === 0}
-                    className="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-xl font-bold disabled:opacity-40 transition-colors">
-                    −1
-                  </button>
-                  <button onClick={() => adjustDrink(item.id, 1)} disabled={isPending}
-                    className="w-12 h-12 rounded-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-xl font-bold text-gray-900 disabled:opacity-40 transition-colors">
-                    +1
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button onClick={finishDrinkCounter}
-          className="w-56 py-3 bg-white text-gray-900 font-bold rounded-xl hover:bg-gray-100 transition-colors">
-          完了
         </button>
       </div>
     )

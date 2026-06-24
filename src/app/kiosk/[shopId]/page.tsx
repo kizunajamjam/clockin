@@ -23,11 +23,11 @@ export default async function KioskPage({ params }: { params: Promise<{ shopId: 
     )
   }
 
-  // アクティブなスタッフ一覧・ドリンクバックのジャンルは互いに独立なので並列取得
-  const [{ data: shopStaff }, { data: drinkItemsData }] = await Promise.all([
-    admin.from('shop_staff').select('staff_id, staff(id, name)').eq('shop_id', shopId).eq('is_active', true),
-    admin.from('drink_back_items').select('id, name').eq('shop_id', shopId).order('sort_order'),
-  ])
+  const { data: shopStaff } = await admin
+    .from('shop_staff')
+    .select('staff_id, staff(id, name)')
+    .eq('shop_id', shopId)
+    .eq('is_active', true)
 
   const staffList = (shopStaff ?? [])
     .flatMap(ss => {
@@ -37,5 +37,5 @@ export default async function KioskPage({ params }: { params: Promise<{ shopId: 
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
 
-  return <KioskClient shopId={shopId} shopName={shop.name} staffList={staffList} drinkItems={drinkItemsData ?? []} />
+  return <KioskClient shopId={shopId} shopName={shop.name} staffList={staffList} />
 }
